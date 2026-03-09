@@ -1,0 +1,22 @@
+{
+  "name": "whatsapp-chatbot",
+  "version": "1.0.0",
+  "description": "WhatsApp Bot powered by Supabase Edge Functions and Gemini AI",
+  "license": "UNLICENSED",
+  "scripts": {
+    "seed": "node scripts/seed-data.mjs",
+    "seed:doctors": "node scripts/seed-data.mjs --table doctors",
+    "seed:clinics": "node scripts/seed-data.mjs --table clinics",
+    "seed:medicines": "node scripts/seed-data.mjs --table medicines",
+    "seed:faqs": "node scripts/seed-data.mjs --table faqs",
+    "serve": "deno run --allow-net --allow-env --allow-read --env-file=.env supabase/functions/webhook/index.ts",
+    "serve:webhook": "deno run --allow-net --allow-env --allow-read --env-file=.env supabase/functions/webhook/index.ts",
+    "serve:process-queue": "deno run --allow-net --allow-env --allow-read --env-file=.env supabase/functions/process-queue/index.ts",
+    "secrets": "node scripts/push-secrets.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.0",
+    "csv-parse": "^5.6.0",
+    "dotenv": "^16.4.7"
+  }
+}
