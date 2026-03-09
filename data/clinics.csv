@@ -1,0 +1,10 @@
+id,name,address,city,phone,email,operating_hours,specializations,rating,is_active
+CLN001,MediCare Central Clinic,"42 MG Road, Indiranagar",Bangalore,+91-80-12345678,info@medicarecentral.in,08:00-20:00,"General Medicine,Cardiology,ENT,Neurology",4.8,true
+CLN002,HealthFirst Skin & Hair Clinic,"15 Church Street, Brigade Road",Bangalore,+91-80-23456789,contact@healthfirstskin.in,09:00-18:00,"Dermatology,Cosmetology",4.7,true
+CLN003,BoneWell Orthopedic Center,"78 Residency Road",Bangalore,+91-80-34567890,help@bonewellortho.in,08:00-17:00,"Orthopedics,Physiotherapy,Sports Medicine",4.6,true
+CLN004,TinyTots Children Hospital,"23 Koramangala 5th Block",Bangalore,+91-80-45678901,care@tinytotshospital.in,08:00-21:00,"Pediatrics,Neonatology",4.9,true
+CLN005,Women's Wellness Center,"56 Jayanagar 4th Block",Bangalore,+91-80-56789012,wellness@womenscenter.in,09:00-18:00,"Gynecology,Obstetrics",4.8,true
+CLN006,MindCare Mental Health Clinic,"34 HSR Layout Sector 2",Bangalore,+91-80-67890123,support@mindcare.in,10:00-18:00,"Psychiatry,Psychology,Counseling",4.7,true
+CLN007,ClearVision Eye Center,"89 Whitefield Main Road",Bangalore,+91-80-78901234,eyes@clearvision.in,09:00-17:00,"Ophthalmology,Optometry",4.6,true
+CLN008,SmileBright Dental Clinic,"12 Electronic City Phase 1",Bangalore,+91-80-89012345,smile@smilebright.in,09:00-20:00,"Dentistry,Orthodontics,Oral Surgery",4.8,true
+CLN009,DigestCare GI Clinic,"67 Marathahalli Bridge Road",Bangalore,+91-80-90123456,info@digestcare.in,09:00-16:00,"Gastroenterology,Hepatology",4.7,true

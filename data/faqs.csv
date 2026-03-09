@@ -1,0 +1,21 @@
+category,question,answer
+GENERAL,What is MediBot?,MediBot is your personal healthcare assistant on WhatsApp. You can discuss symptoms and get general health guidance and book doctor appointments and order medicines - all through chat.
+GENERAL,Is MediBot a replacement for a doctor?,No. MediBot provides general health information and helps you connect with qualified doctors. Always consult a licensed healthcare professional for medical advice and diagnosis.
+GENERAL,What languages does MediBot support?,MediBot supports English Hindi Tamil Telugu Malayalam and Kannada. You can type or send voice messages in any of these languages.
+GENERAL,What are the operating hours?,MediBot is available 24/7 for general queries. Doctor appointment bookings are subject to individual doctor availability schedules.
+BOOKING,How do I book a doctor appointment?,Simply tell me your symptoms or the type of doctor you need. I will show you available doctors and help you pick a convenient time slot.
+BOOKING,Can I cancel or reschedule my appointment?,Yes you can cancel or reschedule your appointment. Just let me know and I will help you with the process. Cancellations made less than 2 hours before the appointment may incur a fee.
+BOOKING,How far in advance can I book?,You can book appointments up to 30 days in advance. Same-day appointments are available based on doctor availability.
+BOOKING,What if the doctor is not available on my preferred date?,I will suggest alternative dates or other qualified doctors in the same specialization who are available at your preferred time.
+MEDICINE,How do I order medicines?,Tell me the medicine name or share your prescription photo. I will check availability and help you place an order.
+MEDICINE,Do I need a prescription?,Over-the-counter medicines like pain relievers and vitamins can be ordered without a prescription. Antibiotics and other controlled medications require a valid prescription.
+MEDICINE,How long does medicine delivery take?,Standard delivery takes 2-4 hours within city limits. Express delivery within 1 hour is available at additional cost.
+MEDICINE,Can I return medicines?,Opened medicines cannot be returned due to safety regulations. Unopened medicines can be returned within 7 days of delivery.
+PAYMENT,What payment methods are accepted?,We accept UPI GPay PhonePe credit/debit cards net banking and cash on delivery for medicine orders. Doctor consultations require advance payment.
+PAYMENT,Is my payment information secure?,Yes. All payments are processed through secure encrypted payment gateways. We never store your card details.
+INSURANCE,Do you accept health insurance?,Currently we support cashless claims for major insurance providers. Please share your insurance details and we will verify coverage.
+INSURANCE,Which insurance companies are supported?,We work with Star Health ICICI Lombard HDFC Ergo Max Bupa and other major health insurance providers.
+EMERGENCY,What should I do in an emergency?,For medical emergencies please call 108 (ambulance) or 112 (emergency services) immediately. MediBot is not designed for emergency medical situations.
+EMERGENCY,Can MediBot help during an emergency?,MediBot can help you find the nearest hospital or emergency room. But for immediate life-threatening situations always call emergency services first.
+CONSULTATION,What happens during an online consultation?,The doctor will review your symptoms ask follow-up questions provide a diagnosis and prescribe medicines if needed. Consultations typically last 10-15 minutes.
+CONSULTATION,Can I get a prescription through chat?,Yes. After a consultation the doctor can provide a digital prescription which you can use to order medicines directly through MediBot.

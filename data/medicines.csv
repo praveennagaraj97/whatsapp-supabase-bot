@@ -1,0 +1,21 @@
+id,name,generic_name,category,description,dosage_form,strength,price,requires_prescription,manufacturer,in_stock
+MED001,Dolo 650,Paracetamol,Painkiller,Effective for fever and mild to moderate pain relief,Tablet,650mg,35,false,Micro Labs,true
+MED002,Crocin Advance,Paracetamol,Painkiller,Fast-acting pain and fever relief,Tablet,500mg,30,false,GSK,true
+MED003,Combiflam,Ibuprofen + Paracetamol,Painkiller,Dual action pain relief for headache body ache and toothache,Tablet,400mg+325mg,42,false,Sanofi,true
+MED004,Azithral 500,Azithromycin,Antibiotic,Broad-spectrum antibiotic for bacterial infections,Tablet,500mg,120,true,Alembic Pharma,true
+MED005,Augmentin 625,Amoxicillin + Clavulanic Acid,Antibiotic,Treats infections of ear nose throat skin and urinary tract,Tablet,500mg+125mg,210,true,GSK,true
+MED006,Ciprofloxacin,Ciprofloxacin,Antibiotic,Treats various bacterial infections including UTI and respiratory,Tablet,500mg,85,true,Cipla,true
+MED007,Cetirizine,Cetirizine,Antihistamine,Relief from allergies hay fever and hives,Tablet,10mg,25,false,Cipla,true
+MED008,Allegra 120,Fexofenadine,Antihistamine,Non-drowsy allergy relief for sneezing runny nose and itchy eyes,Tablet,120mg,180,false,Sanofi,true
+MED009,Pantoprazole,Pantoprazole,Antacid,Reduces stomach acid and treats GERD and acid reflux,Tablet,40mg,65,false,Sun Pharma,true
+MED010,Omeprazole,Omeprazole,Antacid,Treatment for stomach ulcers and acid-related disorders,Capsule,20mg,55,false,Dr Reddys,true
+MED011,Metformin,Metformin,Diabetes,Controls blood sugar levels in type 2 diabetes,Tablet,500mg,45,true,USV,true
+MED012,Amlodipine,Amlodipine,Blood Pressure,Treats high blood pressure and chest pain (angina),Tablet,5mg,38,true,Cipla,true
+MED013,Atorvastatin,Atorvastatin,Cholesterol,Lowers cholesterol and reduces risk of heart disease,Tablet,10mg,95,true,Ranbaxy,true
+MED014,Becosules,B-Complex + Vitamin C,Vitamin,Daily vitamin supplement for general wellness,Capsule,N/A,32,false,Pfizer,true
+MED015,Shelcal 500,Calcium + Vitamin D3,Vitamin,Calcium supplement for bone health,Tablet,500mg,165,false,Elder Pharma,true
+MED016,ORS Electral,Oral Rehydration Salts,Rehydration,Prevents and treats dehydration from diarrhea or vomiting,Powder,21.8g,22,false,FDC,true
+MED017,Loperamide,Loperamide,Antidiarrheal,Quick relief from acute diarrhea,Capsule,2mg,28,false,Johnson & Johnson,true
+MED018,Montelukast,Montelukast,Respiratory,Prevents asthma attacks and relieves allergic rhinitis,Tablet,10mg,120,true,Sun Pharma,true
+MED019,Salbutamol Inhaler,Salbutamol,Respiratory,Quick-relief inhaler for asthma and breathing difficulties,Inhaler,100mcg,140,true,Cipla,true
+MED020,Cough Syrup Benadryl,Diphenhydramine,Cough,Relief from dry and wet cough with sore throat,Syrup,14.08mg/5ml,95,false,Johnson & Johnson,true
