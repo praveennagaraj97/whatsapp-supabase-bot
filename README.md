@@ -288,7 +288,7 @@ curl "http://localhost:8000?hub.mode=subscribe&hub.challenge=test123&hub.verify_
 ## Project Structure
 
 ```
-whatsapp-chat-bot-demo/
+#root/
 ├── .env                          # Environment variables (git-ignored)
 ├── .vscode/settings.json         # Deno extension config for edge functions
 ├── Makefile                      # All project commands
