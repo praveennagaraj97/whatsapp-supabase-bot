@@ -1,0 +1,13 @@
+services:
+  webhook:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: whatsapp-webhook
+    env_file:
+      - .env
+    environment:
+      PORT: '8000'
+    ports:
+      - '8000:8000'
+    restart: unless-stopped
