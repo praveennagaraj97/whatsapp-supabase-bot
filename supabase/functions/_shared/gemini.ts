@@ -1,3 +1,4 @@
+import { GoogleGenAI } from "npm:@google/genai@latest";
 // Gemini AI service
 import {
   formatDoctorsTable,
@@ -18,14 +19,95 @@ import { buildUserPrompt } from "./prompts/user-prompt.ts";
 import type { AIPromptResponse, UserSession } from "./types.ts";
 import { fetchAudioAsBase64 } from "./whatsapp.ts";
 
-const GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta";
+function getApiKeys(): string[] {
+  const csv = Deno.env.get("GEMINI_API_KEYS") || "";
+  const keys = csv
+    .split(",")
+    .map((k) => k.trim())
+    .filter(Boolean);
 
-function getApiKey(): string {
-  return Deno.env.get("GEMINI_API_KEY") || "";
+  if (keys.length > 0) {
+    return keys;
+  }
+
+  const singleKey = Deno.env.get("GEMINI_API_KEY") || "";
+  return singleKey ? [singleKey] : [];
 }
 
 function getModelName(): string {
   return Deno.env.get("GEMINI_MODEL") || "gemini-2.5-flash";
+}
+
+const apiKeys = getApiKeys();
+let currentKeyIndex = 0;
+let genAIClient: GoogleGenAI | null = null;
+
+function getCurrentClient(): GoogleGenAI {
+  if (apiKeys.length === 0) {
+    throw new Error("Missing Gemini API key. Set GEMINI_API_KEY or GEMINI_API_KEYS");
+  }
+
+  if (!genAIClient) {
+    genAIClient = new GoogleGenAI({ apiKey: apiKeys[currentKeyIndex] });
+  }
+
+  return genAIClient;
+}
+
+function rotateApiKey(startingIndex: number, failureReason?: string): boolean {
+  if (apiKeys.length <= 1) return false;
+
+  const previousIndex = currentKeyIndex;
+  currentKeyIndex = (currentKeyIndex + 1) % apiKeys.length;
+
+  if (currentKeyIndex === startingIndex && previousIndex !== startingIndex) {
+    return false;
+  }
+
+  const reason = failureReason ? ` Reason: ${failureReason}` : "";
+  console.error(
+    `Gemini API key ${previousIndex + 1} failed.${reason} Rotating to key ${currentKeyIndex + 1}.`,
+  );
+
+  genAIClient = new GoogleGenAI({ apiKey: apiKeys[currentKeyIndex] });
+  return true;
+}
+
+function isApiKeyError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+
+  const err = error as Record<string, unknown>;
+  const message = String(err.message || "").toLowerCase();
+  const code = String(err.code || "").toLowerCase();
+  const status = String(err.status || "").toLowerCase();
+  const statusCode = Number(
+    err.statusCode ||
+      (typeof err.response === "object" && err.response
+        ? (err.response as Record<string, unknown>).status
+        : undefined) ||
+      err.code ||
+      (typeof err.error === "object" && err.error
+        ? (err.error as Record<string, unknown>).code
+        : undefined) ||
+      0,
+  );
+
+  const indicators = [
+    "api key",
+    "authentication",
+    "unauthorized",
+    "quota",
+    "rate limit",
+    "permission denied",
+    "invalid api key",
+    "overloaded",
+    "unavailable",
+    "resource exhausted",
+  ];
+
+  return indicators.some((indicator) =>
+    message.includes(indicator) || code.includes(indicator) || status.includes(indicator)
+  ) || [401, 403, 429, 503].includes(statusCode);
 }
 
 /**
@@ -36,38 +118,49 @@ async function callGemini(
   userPrompt: string,
   responseSchema?: Record<string, unknown>,
 ): Promise<string> {
-  const apiKey = getApiKey();
   const model = getModelName();
-  const url = `${GEMINI_API_BASE}/models/${model}:generateContent?key=${apiKey}`;
+  const initialKeyIndex = currentKeyIndex;
+  const maxAttempts = Math.max(apiKeys.length, 1);
+  let attempts = 0;
+  let lastError: unknown;
 
-  const body: Record<string, unknown> = {
-    system_instruction: { parts: [{ text: systemInstruction }] },
-    contents: [{ role: "user", parts: [{ text: userPrompt }] }],
-    generationConfig: {
-      temperature: 0.3,
-      maxOutputTokens: 2048,
-    },
-  };
+  while (attempts < maxAttempts) {
+    try {
+      const client = getCurrentClient();
+      const config: Record<string, unknown> = {
+        systemInstruction,
+        temperature: 0.3,
+        maxOutputTokens: 2048,
+      };
 
-  if (responseSchema) {
-    (body.generationConfig as Record<string, unknown>).responseMimeType = "application/json";
-    (body.generationConfig as Record<string, unknown>).responseSchema = responseSchema;
+      if (responseSchema) {
+        config.responseMimeType = "application/json";
+        config.responseSchema = responseSchema;
+      }
+
+      const response = await client.models.generateContent({
+        model,
+        contents: [{ role: "user", parts: [{ text: userPrompt }] }],
+        config,
+      });
+
+      return response.text || "";
+    } catch (error) {
+      lastError = error;
+      attempts++;
+
+      if (isApiKeyError(error) && attempts < maxAttempts) {
+        const reason = error instanceof Error ? error.message : String(error);
+        if (rotateApiKey(initialKeyIndex, reason)) {
+          continue;
+        }
+      }
+
+      break;
+    }
   }
 
-  const resp = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-
-  if (!resp.ok) {
-    const errText = await resp.text();
-    throw new Error(`Gemini API error (${resp.status}): ${errText}`);
-  }
-
-  const data = await resp.json();
-  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
-  return text;
+  throw new Error(`Gemini API error after ${attempts} attempt(s): ${String(lastError)}`);
 }
 
 /**
@@ -79,45 +172,55 @@ async function callGeminiWithAudio(
   audioBase64: string,
   mimeType: string,
 ): Promise<string> {
-  const apiKey = getApiKey();
   const model = getModelName();
-  const url = `${GEMINI_API_BASE}/models/${model}:generateContent?key=${apiKey}`;
+  const initialKeyIndex = currentKeyIndex;
+  const maxAttempts = Math.max(apiKeys.length, 1);
+  let attempts = 0;
+  let lastError: unknown;
 
-  const body = {
-    system_instruction: { parts: [{ text: systemInstruction }] },
-    contents: [
-      {
-        role: "user",
-        parts: [
-          { text: prompt },
+  while (attempts < maxAttempts) {
+    try {
+      const client = getCurrentClient();
+      const response = await client.models.generateContent({
+        model,
+        contents: [
           {
-            inline_data: {
-              mime_type: mimeType,
-              data: audioBase64,
-            },
+            role: "user",
+            parts: [
+              { text: prompt },
+              {
+                inlineData: {
+                  mimeType,
+                  data: audioBase64,
+                },
+              },
+            ],
           },
         ],
-      },
-    ],
-    generationConfig: {
-      temperature: 0.1,
-      maxOutputTokens: 1024,
-    },
-  };
+        config: {
+          systemInstruction,
+          temperature: 0.1,
+          maxOutputTokens: 1024,
+        },
+      });
 
-  const resp = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+      return response.text || "";
+    } catch (error) {
+      lastError = error;
+      attempts++;
 
-  if (!resp.ok) {
-    const errText = await resp.text();
-    throw new Error(`Gemini audio API error (${resp.status}): ${errText}`);
+      if (isApiKeyError(error) && attempts < maxAttempts) {
+        const reason = error instanceof Error ? error.message : String(error);
+        if (rotateApiKey(initialKeyIndex, reason)) {
+          continue;
+        }
+      }
+
+      break;
+    }
   }
 
-  const data = await resp.json();
-  return data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+  throw new Error(`Gemini audio API error after ${attempts} attempt(s): ${String(lastError)}`);
 }
 
 /**
