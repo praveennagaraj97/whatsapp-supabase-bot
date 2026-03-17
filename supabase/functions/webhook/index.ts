@@ -587,17 +587,19 @@ Deno.serve({ port }, async (req: Request): Promise<Response> => {
         } as Partial<UserSession>);
         session.is_intro_sent = true;
 
-        const nameGreeting = session.user_name ? ` ${session.user_name}` : "";
-        await sendText(
-          message.from,
-          project.welcome_message ||
-            `Welcome${nameGreeting} to *${project.bot_name}*!\n\n`,
-        );
-        await saveSentMessage(
-          project.id,
-          message.from,
-          `Welcome to ${project.bot_name}! How can I help you today?`,
-        );
+        if (project.welcome_message) {
+          const nameGreeting = session.user_name ? ` ${session.user_name}` : "";
+          await sendText(
+            message.from,
+            project.welcome_message ||
+              `Welcome${nameGreeting} to *${project.bot_name}*!\n\n`,
+          );
+          await saveSentMessage(
+            project.id,
+            message.from,
+            project.welcome_message,
+          );
+        }
 
         // Small delay before processing
         await new Promise((r) => setTimeout(r, 2000));
