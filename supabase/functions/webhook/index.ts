@@ -30,7 +30,15 @@ import {
   enqueueMessage,
   hasQueuedMessages,
 } from "../_shared/message-queue.ts";
-import { getEnabledProject } from "../_shared/projects.ts";
+import {
+  clearProjectCache,
+  getEnabledProject,
+  getEnabledProjectFromMemory,
+  getEnabledProjectPrompt,
+  getEnabledProjectPromptFromMemory,
+  warmEnabledProjectCache,
+} from "../_shared/projects.ts";
+import { clearPromptsCache } from "../_shared/prompts-manager.ts";
 import {
   deleteSession,
   getMinutesSinceLastMessage,
@@ -65,6 +73,35 @@ function corsResponse(): Response {
       "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type, Authorization",
     },
+  });
+}
+
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization",
+      "Content-Type": "application/json",
+    },
+  });
+}
+
+async function refreshActiveProjectCache(): Promise<void> {
+  clearProjectCache();
+  clearPromptsCache();
+  await warmEnabledProjectCache();
+  await getEnabledProjectPrompt();
+}
+
+async function handleCacheRefresh(_req: Request): Promise<Response> {
+  await refreshActiveProjectCache();
+
+  return jsonResponse({
+    ok: true,
+    projectId: getEnabledProjectFromMemory()?.id || null,
+    promptLength: getEnabledProjectPromptFromMemory().length,
   });
 }
 
@@ -586,6 +623,11 @@ async function handleMessage(
 // ─── Main Deno.serve handler ───
 const port = Number(Deno.env.get("PORT") || "8000");
 
+// Warm enabled project and prompt cache at cold start to avoid DB reads on every message.
+void refreshActiveProjectCache().catch((error) => {
+  console.warn("Initial project cache warm-up skipped:", error);
+});
+
 Deno.serve({ port }, async (req: Request): Promise<Response> => {
   // CORS preflight
   if (req.method === "OPTIONS") {
@@ -593,6 +635,10 @@ Deno.serve({ port }, async (req: Request): Promise<Response> => {
   }
 
   const url = new URL(req.url);
+
+  if (req.method === "POST" && url.pathname.endsWith("/refresh-cache")) {
+    return await handleCacheRefresh(req);
+  }
 
   // ─── GET: Meta webhook verification ───
   if (req.method === "GET") {

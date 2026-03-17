@@ -125,6 +125,34 @@ async function getProjectById(projectId: string): Promise<ProjectConfig> {
   return data as ProjectConfig;
 }
 
+async function triggerWebhookCacheRefresh(): Promise<void> {
+  const supabaseUrl = (Deno.env.get("SUPABASE_URL") || "").replace(/\/+$/, "");
+  const refreshUrl = supabaseUrl ? `${supabaseUrl}/functions/v1/webhook/refresh-cache` : "";
+
+  if (!refreshUrl) {
+    return;
+  }
+
+  const headers: HeadersInit = {
+    "Content-Type": "application/json",
+  };
+
+  try {
+    const response = await fetch(refreshUrl, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ reason: "project_enabled" }),
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      console.warn(`Webhook cache refresh failed (${response.status}): ${text}`);
+    }
+  } catch (error) {
+    console.warn("Failed to call webhook cache refresh endpoint:", error);
+  }
+}
+
 async function setEnabledProject(projectId: string): Promise<void> {
   const supabase = getSupabaseClient();
 
@@ -147,6 +175,8 @@ async function setEnabledProject(projectId: string): Promise<void> {
   }
 
   clearProjectCache();
+  clearPromptsCache();
+  await triggerWebhookCacheRefresh();
 }
 
 async function listProjects(): Promise<Response> {
