@@ -292,7 +292,7 @@ make serve-admin
 Default seeded admin credentials:
 
 ```text
-Email: admin@medibot.in
+Email: admin@mail.com
 Password: Admin@123456
 ```
 
@@ -316,7 +316,7 @@ JWT expiry is **30 days** from login.
 
 ```json
 {
-  "email": "admin@medibot.in",
+  "email": "admin@mail.com",
   "password": "Admin@123456"
 }
 ```
@@ -330,7 +330,7 @@ Response:
   "expiresAt": "2026-04-16T06:41:01.053Z",
   "admin": {
     "id": "0f65c2b6-...",
-    "email": "admin@medibot.in",
+    "email": "admin@mail.com",
     "fullName": "Default Admin"
   }
 }

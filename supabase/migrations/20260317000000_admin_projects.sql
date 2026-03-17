@@ -64,7 +64,7 @@ INSERT INTO admin_users (
   password_hash,
   is_active
 ) VALUES (
-  'admin@medibot.in',
+  'admin@mail.com',
   'Default Admin',
   '$2b$10$WV19wISz4UGNnv.YwFZmBONTi4KJ1e4Vq6rduheDgNrKpo08T5dXC',
   TRUE

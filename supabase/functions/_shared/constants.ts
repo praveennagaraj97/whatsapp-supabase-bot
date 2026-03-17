@@ -9,7 +9,7 @@ export const INACTIVITY_BUTTON_START_NEW_TITLE = "Start New";
 
 // Support
 export const SUPPORT_PHONE = "+91 9876543210";
-export const SUPPORT_EMAIL = "support@medibot.in";
+export const SUPPORT_EMAIL = "support@mail.com";
 
 // Processing
 export const MAX_QUEUE_TURNS = 50;
