@@ -57,7 +57,7 @@ export function ConfirmModal({
             onClick={(event) => event.stopPropagation()}
           >
             <h3 className="text-lg font-semibold text-foreground">{title}</h3>
-            <p className="text-(--muted) mt-2 text-sm leading-6">
+            <p className="text-(--muted) mt-2 text-sm leading-6 whitespace-pre-wrap">
               {description}
             </p>
 

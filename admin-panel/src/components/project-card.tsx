@@ -158,7 +158,7 @@ export function ProjectCard({ project, onToggle, onDelete }: ProjectCardProps) {
         description={
           project.is_enabled
             ? `Are you sure you want to disable project "${project.name}"?`
-            : `Are you sure you want to enable project "${project.name}"? All user sessions will be cleared.`
+            : `Are you sure you want to enable project "${project.name}"? \nAll user sessions will be cleared.`
         }
         confirmText={project.is_enabled ? 'Disable' : 'Enable'}
         cancelText="Cancel"
