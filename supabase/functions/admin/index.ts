@@ -2,6 +2,7 @@ import { issueAdminToken, requireAdminAuth, verifyAdminPassword } from "../_shar
 import { clearKnowledgeBaseCache } from "../_shared/knowledge-base.ts";
 import { clearProjectCache } from "../_shared/projects.ts";
 import { clearPromptsCache, getResponseSchema } from "../_shared/prompts-manager.ts";
+import { clearProjectSessions } from "../_shared/session.ts";
 import { getSupabaseClient } from "../_shared/supabase-client.ts";
 import type { AdminUser, ProjectConfig } from "../_shared/types.ts";
 
@@ -157,6 +158,9 @@ async function setEnabledProject(projectId: string): Promise<void> {
   if (enableError) {
     throw new Error(`Failed to enable project: ${enableError.message}`);
   }
+
+  // Clear user sessions when project is switched
+  await clearProjectSessions(projectId);
 
   clearProjectCache();
   clearPromptsCache();

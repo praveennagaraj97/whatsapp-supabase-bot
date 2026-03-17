@@ -18,6 +18,7 @@ export function ProjectCard({ project, onToggle, onDelete }: ProjectCardProps) {
   const [isDeletingProject, setIsDeletingProject] = useState(false);
   const [error, setError] = useState('');
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isToggleModalOpen, setIsToggleModalOpen] = useState(false);
 
   async function handleToggle() {
     setError('');
@@ -30,6 +31,16 @@ export function ProjectCard({ project, onToggle, onDelete }: ProjectCardProps) {
     } finally {
       setIsTogglingEnabled(false);
     }
+  }
+
+  function openToggleModal() {
+    setIsToggleModalOpen(true);
+  }
+
+  async function handleToggleConfirm() {
+    setError('');
+    await handleToggle();
+    setIsToggleModalOpen(false);
   }
 
   function openDeleteModal() {
@@ -88,7 +99,7 @@ export function ProjectCard({ project, onToggle, onDelete }: ProjectCardProps) {
 
           <button
             type="button"
-            onClick={handleToggle}
+            onClick={openToggleModal}
             disabled={isTogglingEnabled}
             className={`relative inline-flex h-8 w-14 items-center rounded-full border transition ${
               project.is_enabled
@@ -139,6 +150,21 @@ export function ProjectCard({ project, onToggle, onDelete }: ProjectCardProps) {
         isConfirming={isDeletingProject}
         onCancel={() => setIsDeleteModalOpen(false)}
         onConfirm={handleDeleteConfirm}
+      />
+
+      <ConfirmModal
+        isOpen={isToggleModalOpen}
+        title={project.is_enabled ? 'Disable Project' : 'Enable Project'}
+        description={
+          project.is_enabled
+            ? `Are you sure you want to disable project "${project.name}"?`
+            : `Are you sure you want to enable project "${project.name}"? All user sessions will be cleared.`
+        }
+        confirmText={project.is_enabled ? 'Disable' : 'Enable'}
+        cancelText="Cancel"
+        isConfirming={isTogglingEnabled}
+        onCancel={() => setIsToggleModalOpen(false)}
+        onConfirm={handleToggleConfirm}
       />
     </motion.div>
   );

@@ -144,3 +144,28 @@ export function sessionHasData(session: UserSession): boolean {
   return !!session.extracted_data &&
     Object.keys(session.extracted_data).length > 0;
 }
+
+/**
+ * Clear all sessions for a project (when project is enabled/disabled)
+ */
+export async function clearProjectSessions(projectId: string): Promise<void> {
+  const supabase = getSupabaseClient();
+
+  // Delete all related data for the project
+  await supabase
+    .from("user_sessions")
+    .delete()
+    .eq("project_id", projectId);
+
+  await supabase
+    .from("chat_messages")
+    .delete()
+    .eq("project_id", projectId);
+
+  await supabase
+    .from("queued_messages")
+    .delete()
+    .eq("project_id", projectId);
+
+  console.log(`[SESSION] Cleared all sessions for project ${projectId}`);
+}
