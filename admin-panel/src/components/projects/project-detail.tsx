@@ -28,6 +28,7 @@ Return a valid JSON object matching the response schema. Do NOT add text outside
 
 ## MESSAGE RULES
 - Keep messages short and friendly (2-4 sentences max).
+- Write naturally spaced paragraphs. Insert a space after punctuation and use blank lines between topic shifts.
 - Use *bold* for key terms users must fill.
 - Separate topics with blank lines.
 - Use plain text only — no markdown headers, bullets, or numbered lists.
