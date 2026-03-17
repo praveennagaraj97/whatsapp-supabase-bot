@@ -7,7 +7,6 @@ CREATE TABLE user_sessions (
   user_id TEXT PRIMARY KEY,
   user_name TEXT,
   user_phone TEXT,
-  conversation_context TEXT DEFAULT 'general',
   last_prompt_field TEXT,
   last_prompt_response TEXT,
   last_user_message TEXT,

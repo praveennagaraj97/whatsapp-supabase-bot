@@ -306,7 +306,6 @@ function parseCSVtoImportData(csvContent) {
 - `{{projectDescription}}` - Project description
 - `{{supportEmail}}` - Support email address
 - `{{supportPhone}}` - Support phone number
-- `{{conversationContext}}` - Current flow (e.g., "booking", "general")
 - `{{projectInstructions}}` - Custom instructions from project fields
 
 **When editing User Prompt, users can use:**
@@ -316,7 +315,6 @@ function parseCSVtoImportData(csvContent) {
 - `{{inputType}}` - "text", "audio", or "location"
 - `{{userName}}` - Patient name from session
 - `{{userPhone}}` - User's phone number
-- `{{conversationContext}}` - Session context ("new_session" or "existing_session")
 - `{{sessionState}}` - Formatted patient/booking data from session
 - `{{conversationHistory}}` - Previous conversation summary
 - `{{lastMessage}}` - Last message from bot

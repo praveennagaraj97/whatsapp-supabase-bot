@@ -22,6 +22,49 @@ type ProjectDetailProps = {
   projectId: string;
 };
 
+// Must stay in sync with supabase/functions/_shared/prompts/system-prompt.ts
+const PREDEFINED_FORMAT_RULES = `## OUTPUT FORMAT
+Return a single valid JSON object that exactly matches the defined response schema.
+Do NOT include any prose, markdown, or text outside the JSON object.
+
+## WHATSAPP MESSAGE FORMATTING
+All text inside the \`message\` field must follow WhatsApp formatting rules:
+- Separate different thoughts or topics with a blank line.
+- Use *bold* (single asterisk) to highlight important terms or fields the user must fill.
+- Use _italic_ (single underscore) sparingly for gentle emphasis.
+- Keep each message short — 2 to 4 sentences maximum.
+- Never use markdown headers (# or ##), bullet dashes (-), or numbered lists inside \`message\`. Use plain text with line breaks instead.
+- Emojis are encouraged to keep the tone light and engaging. Use them naturally.
+
+## TONE & STYLE
+- Be friendly, concise, and conversational — like a knowledgeable friend, not a corporate bot.
+- Always respond in clear, simple English regardless of the user's input language.
+- When a server validation error or unavailability is present, switch to a slightly apologetic tone and avoid overly cheerful emojis.
+
+## NO INTERNAL IDs IN MESSAGES
+Never mention internal IDs, codes, UUIDs, or numeric identifiers inside \`message\`.
+Always refer to items by their descriptive name or natural language equivalent.
+
+## KNOWLEDGE BOUNDARY
+Answer factual questions using ONLY the data provided in PROJECT DATA TABLES.
+If required data is missing from the tables, ask a concise follow-up question instead of guessing.
+Never hallucinate or invent data that is not present.
+
+## EXTRACTION RULES
+- Extract all clearly available values from the user message into \`extractedData\` in the same turn.
+- Do not drop valid extracted values just because another field in the same turn is invalid.
+- Do not clear previously valid fields unless the user explicitly corrects them.
+- Keep extracted values consistent with the message text.
+
+## CONVERSATION SUMMARY RULES
+- Populate \`conversationSummary\` as a short cumulative summary across turns.
+- Preserve important previously confirmed facts while adding newly confirmed updates.
+- Keep it concise and useful for next-turn context.
+- Do not include internal IDs or sensitive data in the summary.
+
+## SUPPORT ESCALATION
+When directing the user to customer support, always share the configured support contact.`.trim();
+
 const REQUIRED_RESPONSE_SCHEMA = {
   type: 'OBJECT',
   properties: {
@@ -182,6 +225,7 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
   >([]);
   const [isLoadingExistingTables, setIsLoadingExistingTables] = useState(false);
   const [isSavingAiConfig, setIsSavingAiConfig] = useState(false);
+  const [showPredefinedRules, setShowPredefinedRules] = useState(false);
 
   const project = data?.project;
 
@@ -478,9 +522,39 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
             </h2>
 
             <div className="grid gap-4">
+              {/* Predefined rules — read-only, always applied by the platform */}
+              <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-4">
+                <button
+                  type="button"
+                  onClick={() => setShowPredefinedRules((v) => !v)}
+                  className="flex w-full items-center justify-between gap-2 text-left"
+                >
+                  <div>
+                    <p className="text-sm font-semibold text-amber-900">
+                      Predefined Format Rules
+                    </p>
+                    <p className="mt-0.5 text-xs text-amber-700">
+                      Always injected by the platform. Not editable.
+                    </p>
+                  </div>
+                  <span className="text-xs font-medium text-amber-700">
+                    {showPredefinedRules ? 'Hide ▲' : 'Show ▼'}
+                  </span>
+                </button>
+
+                {showPredefinedRules && (
+                  <pre className="mt-3 whitespace-pre-wrap break-words rounded-lg border border-amber-200 bg-white/80 p-3 text-xs leading-relaxed text-zinc-700">
+                    {PREDEFINED_FORMAT_RULES}
+                  </pre>
+                )}
+              </div>
+
               <label className="block">
                 <span className="text-(--muted) mb-2 block text-sm font-medium">
-                  System Prompt
+                  System Prompt{' '}
+                  <span className="font-normal text-zinc-400">
+                    (domain behaviour — your editable part)
+                  </span>
                 </span>
                 <textarea
                   value={systemPrompt}

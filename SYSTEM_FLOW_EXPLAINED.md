@@ -130,7 +130,6 @@ ADMIN PANEL:                              RUNTIME:
 - `{{projectDescription}}` → Optional description
 - `{{supportEmail}}` → Support email
 - `{{supportPhone}}` → Support phone
-- `{{conversationContext}}` → Current flow ("booking", "order", etc.)
 - `{{projectInstructions}}` → Custom instructions
 
 **User Prompt Placeholders:**
@@ -140,7 +139,6 @@ ADMIN PANEL:                              RUNTIME:
 - `{{inputType}}` → "text", "audio", or "location"
 - `{{userName}}` → Patient/customer name from session
 - `{{userPhone}}` → User's phone number
-- `{{conversationContext}}` → "new_session" or "existing_session"
 - `{{sessionState}}` → Formatted session data (e.g., "wants table for 4, 7pm")
 - `{{conversationHistory}}` → Summary of previous conversation
 - `{{knowledgeBase}}` → Doctors/menu/products formatted as markdown
@@ -166,7 +164,7 @@ TIME    EVENT
         ↓
 5ms     Database query: SELECT * FROM user_sessions
         WHERE project_id='AAA' AND user_id='+91987654321'
-        → Finds existing session, loads: user_name="John", conversation_context="booking"
+        → Finds existing session, loads: user_name="John"
         ↓
 7ms     Database queries:
         - SELECT * FROM doctors WHERE project_id='AAA'

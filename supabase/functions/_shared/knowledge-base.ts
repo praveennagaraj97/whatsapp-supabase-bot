@@ -78,12 +78,3 @@ export function formatProjectDataTablesForPrompt(
 
   return formatted.join("\n\n");
 }
-
-
-
-  const result = (data || []) as FAQ[];
-  setCache(cacheKey, result);
-  return result;
-}
-
-

@@ -179,7 +179,7 @@
                         │ │ STEP 3: GET/CREATE USER SESSION                 │   │
                         │ │ ──────────────────────────────────────────────── │   │
                         │ │ - Key: (project_id, user_id)                    │   │
-                        │ │ - Load: conversation_context, symptoms, etc.    │   │
+                        │ │ - Load: extracted_data, summary, flags, etc.    │   │
                         │ │ - Mark as NEW_SESSION: yes/no                   │   │
                         │ │ - Extract welcome msg if new                    │   │
                         │ └──────────────────┬───────────────────────────────┘   │
@@ -275,7 +275,6 @@
                 │ ┌──────────────────────────────────────────┐ │               │
                 │ │ UPDATE user_sessions SET                │ │               │
                 │ │   symptoms = AI.symptoms,               │ │               │
-                │ │   conversation_context = ...,           │ │               │
                 │ │   last_prompt_response = AI.message,    │ │               │
                 │ │   conversation_summary = AI.summary,    │ │               │
                 │ │   WHERE project_id = ? AND user_id = ?  │ │               │
@@ -334,7 +333,6 @@ USER_SESSIONS (Runtime State - Project Scoped)
 │ project_id (UUID) [FK→projects] [PK1]    │
 │ user_id (string)  [PK2]                  │
 │ user_name         "John"                 │
-│ conversation_context "booking"           │
 │ symptoms          "headache, fever"      │
 │ doctor_id         "doctor-123"           │
 │ doctor_name       "Dr. Sharma"           │

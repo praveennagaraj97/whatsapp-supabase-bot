@@ -395,7 +395,6 @@ _System Prompt Template:_
 - `{{projectDescription}}` — Project description
 - `{{supportEmail}}` — Support email from constants
 - `{{supportPhone}}` — Support phone from constants
-- `{{conversationContext}}` — Current conversation context
 - `{{projectInstructions}}` — Project-specific instructions
 
 _User Prompt Template:_
@@ -406,7 +405,6 @@ _User Prompt Template:_
 - `{{inputType}}` — Message type (text, audio, location)
 - `{{userName}}` — Patient name from session
 - `{{userPhone}}` — User phone number
-- `{{conversationContext}}` — Current context (new_session or existing_session)
 - `{{sessionState}}` — Formatted session data (symptoms, doctor, dates, etc.)
 - `{{conversationHistory}}` — Previous conversation summary
 - `{{lastMessage}}` — Last bot message

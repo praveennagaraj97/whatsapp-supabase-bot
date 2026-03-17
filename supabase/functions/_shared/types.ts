@@ -93,7 +93,6 @@ export interface UserSession {
   user_id: string;
   user_name: string | null;
   user_phone: string | null;
-  conversation_context: string;
   last_prompt_field: string | null;
   last_prompt_response: string | null;
   last_user_message: string | null;

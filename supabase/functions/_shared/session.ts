@@ -26,7 +26,6 @@ export async function getOrCreateSession(
   const newSession: Partial<UserSession> = {
     project_id: projectId,
     user_id: userId,
-    conversation_context: "general",
     extracted_data: {},
     is_processing: false,
     is_intro_sent: false,
@@ -100,7 +99,6 @@ export async function startNewSession(
     user_id: session.user_id,
     user_name: session.user_name,
     user_phone: session.user_phone,
-    conversation_context: "general",
     extracted_data: {},
     is_processing: false,
     is_intro_sent: true,
