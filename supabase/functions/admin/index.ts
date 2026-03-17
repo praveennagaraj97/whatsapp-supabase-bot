@@ -75,6 +75,14 @@ function toBoolean(value: unknown, fallback = false): boolean {
   return fallback;
 }
 
+function isMissingProjectDataTableError(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return normalized.includes("project_data_tables") &&
+    (normalized.includes("schema cache") ||
+      normalized.includes("could not find the table") ||
+      normalized.includes("does not exist"));
+}
+
 async function parseJsonBody(req: Request): Promise<Record<string, unknown>> {
   try {
     return await req.json();
@@ -338,6 +346,11 @@ async function importProjectData(
       .eq("project_id", projectId);
 
     if (deleteError) {
+      if (isMissingProjectDataTableError(deleteError.message)) {
+        throw new Error(
+          "Missing table public.project_data_tables. Run migration 20260317000002_generic_project_data_prompt.sql and redeploy admin/webhook functions.",
+        );
+      }
       throw new Error(`Failed to clear project_data_tables: ${deleteError.message}`);
     }
   }
@@ -364,6 +377,11 @@ async function importProjectData(
       );
 
     if (upsertError) {
+      if (isMissingProjectDataTableError(upsertError.message)) {
+        throw new Error(
+          "Missing table public.project_data_tables. Run migration 20260317000002_generic_project_data_prompt.sql and redeploy admin/webhook functions.",
+        );
+      }
       throw new Error(`Failed to upsert ${tableName}: ${upsertError.message}`);
     }
   }

@@ -21,28 +21,39 @@ type ProjectDetailProps = {
   projectId: string;
 };
 
-const ECOMMERCE_TEMPLATE = {
-  systemPrompt:
-    'You are a commerce assistant. Help users discover products, compare options, track orders, and answer policy questions clearly and concisely.',
-  responseSchema: {
-    extractedData: {
-      intent: 'string',
-      productId: 'string|null',
-      productName: 'string|null',
-      orderId: 'string|null',
-      quantity: 'number|null',
-      priceRange: 'string|null',
-    },
-    message: 'string',
-    nextAction: 'string|null',
+const REQUIRED_RESPONSE_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    extractedData: { type: 'OBJECT' },
+    message: { type: 'STRING' },
+    nextAction: { type: 'STRING', nullable: true },
     status: {
-      outcome: 'SUCCESS|PARTIAL_SUCCESS|FAILED|AMBIGUOUS',
-      reason: 'string|null',
-      field: 'string|null',
+      type: 'OBJECT',
+      properties: {
+        outcome: {
+          type: 'STRING',
+          enum: ['SUCCESS', 'PARTIAL_SUCCESS', 'FAILED', 'AMBIGUOUS'],
+        },
+        reason: { type: 'STRING', nullable: true },
+        field: { type: 'STRING', nullable: true },
+      },
+      required: ['outcome'],
     },
-    options: 'string[]|null',
-    conversationSummary: 'string|null',
+    options: {
+      type: 'ARRAY',
+      items: { type: 'STRING' },
+      nullable: true,
+    },
+    conversationSummary: { type: 'STRING', nullable: true },
   },
+  required: [
+    'extractedData',
+    'message',
+    'nextAction',
+    'status',
+    'options',
+    'conversationSummary',
+  ],
 };
 
 function getErrorMessage(error: unknown): string {
@@ -73,13 +84,14 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
     {
       tableName: 'Sheet 1',
       sourceTab: '',
-      backendKey: 'products',
+      backendKey: 'table_1',
     },
   ]);
   const [replaceExisting, setReplaceExisting] = useState(false);
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   const [isSubmittingData, setIsSubmittingData] = useState(false);
-  const [responseSchemaText, setResponseSchemaText] = useState('{}');
+  const [optionalExtractedFieldsText, setOptionalExtractedFieldsText] =
+    useState('{}');
   const [isSavingAiConfig, setIsSavingAiConfig] = useState(false);
 
   const project = data?.project;
@@ -103,14 +115,24 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
         setSystemPrompt(
           response.prompts.systemPrompt || project?.system_prompt || '',
         );
-        setResponseSchemaText(
-          JSON.stringify(response.prompts.responseSchema || {}, null, 2),
+        const extractedProperties = (
+          response.prompts.responseSchema as {
+            properties?: { extractedData?: { properties?: unknown } };
+          }
+        )?.properties?.extractedData?.properties;
+
+        setOptionalExtractedFieldsText(
+          JSON.stringify(
+            extractedProperties && typeof extractedProperties === 'object'
+              ? extractedProperties
+              : {},
+            null,
+            2,
+          ),
         );
       } catch {
         if (!isMounted) return;
-        setResponseSchemaText(
-          JSON.stringify(ECOMMERCE_TEMPLATE.responseSchema, null, 2),
-        );
+        setOptionalExtractedFieldsText('{}');
       }
     }
 
@@ -249,19 +271,34 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
       return;
     }
 
-    let parsedSchema: Record<string, unknown>;
+    let optionalExtractedFields: Record<string, unknown>;
     try {
-      parsedSchema = JSON.parse(responseSchemaText);
+      optionalExtractedFields = JSON.parse(optionalExtractedFieldsText);
     } catch {
-      toast.error('Response schema must be valid JSON');
+      toast.error('Optional extracted fields must be valid JSON');
       return;
     }
+
+    const responseSchema: Record<string, unknown> = {
+      ...REQUIRED_RESPONSE_SCHEMA,
+      properties: {
+        ...REQUIRED_RESPONSE_SCHEMA.properties,
+        extractedData: {
+          type: 'OBJECT',
+          properties:
+            optionalExtractedFields &&
+            typeof optionalExtractedFields === 'object'
+              ? optionalExtractedFields
+              : {},
+        },
+      },
+    };
 
     setIsSavingAiConfig(true);
     try {
       await projectDetailService.updateProjectPrompts(projectId, {
         systemPrompt,
-        responseSchema: parsedSchema,
+        responseSchema,
       });
       toast.success('AI configuration updated');
     } catch (error) {
@@ -269,20 +306,6 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
     } finally {
       setIsSavingAiConfig(false);
     }
-  }
-
-  function handleApplyEcommerceTemplate() {
-    setSystemPrompt(ECOMMERCE_TEMPLATE.systemPrompt);
-    setResponseSchemaText(
-      JSON.stringify(ECOMMERCE_TEMPLATE.responseSchema, null, 2),
-    );
-    setTableConfigs([
-      { tableName: 'Products', sourceTab: '', backendKey: 'products' },
-      { tableName: 'Categories', sourceTab: '', backendKey: 'categories' },
-      { tableName: 'Orders', sourceTab: '', backendKey: 'orders' },
-      { tableName: 'Faqs', sourceTab: '', backendKey: 'faqs' },
-    ]);
-    toast.info('Applied ecommerce test template. You can edit all fields.');
   }
 
   function handleLogout() {
@@ -372,17 +395,28 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
 
               <label className="block">
                 <span className="text-(--muted) mb-2 block text-sm font-medium">
-                  Response Schema (JSON)
+                  Required Response Fields
                 </span>
                 <textarea
-                  value={responseSchemaText}
+                  value={JSON.stringify(REQUIRED_RESPONSE_SCHEMA, null, 2)}
+                  readOnly
+                  className="h-52 w-full rounded-xl border border-(--panel-border) bg-white/85 px-4 py-3 font-mono text-xs text-foreground outline-none transition focus:border-(--accent)"
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-(--muted) mb-2 block text-sm font-medium">
+                  Optional Extracted Fields (JSON object)
+                </span>
+                <textarea
+                  value={optionalExtractedFieldsText}
                   onChange={(event) =>
-                    setResponseSchemaText(event.target.value)
+                    setOptionalExtractedFieldsText(event.target.value)
                   }
                   placeholder={
-                    '{\n  "message": "string",\n  "nextAction": "string|null"\n}'
+                    '{\n  "intent": { "type": "STRING", "nullable": true },\n  "orderId": { "type": "STRING", "nullable": true }\n}'
                   }
-                  className="h-52 w-full rounded-xl border border-(--panel-border) bg-white/85 px-4 py-3 font-mono text-xs text-foreground outline-none transition focus:border-(--accent)"
+                  className="h-40 w-full rounded-xl border border-(--panel-border) bg-white/85 px-4 py-3 font-mono text-xs text-foreground outline-none transition focus:border-(--accent)"
                 />
               </label>
             </div>
@@ -395,13 +429,6 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
                 className="rounded-xl bg-foreground px-4 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-60"
               >
                 {isSavingAiConfig ? 'Saving AI Config...' : 'Save AI Config'}
-              </button>
-              <button
-                type="button"
-                onClick={handleApplyEcommerceTemplate}
-                className="rounded-xl border border-(--panel-border) bg-white px-4 py-2 text-sm font-medium text-foreground transition hover:bg-zinc-100"
-              >
-                Seed Ecommerce Test Template
               </button>
             </div>
           </motion.div>

@@ -57,36 +57,4 @@ response_schema = COALESCE(response_schema, jsonb_build_object(
   )
 ));
 
--- Seed generic ecommerce-style sample data for enabled/default project
-WITH target_project AS (
-  SELECT id FROM projects WHERE is_enabled = true ORDER BY created_at ASC LIMIT 1
-), seeded AS (
-  INSERT INTO project_data_tables (project_id, table_name, rows)
-  SELECT id, 'products',
-    jsonb_build_array(
-      jsonb_build_object('id', 'p-100', 'name', 'Wireless Earbuds', 'category', 'Audio', 'price', 2499, 'stock', 32),
-      jsonb_build_object('id', 'p-101', 'name', 'Mechanical Keyboard', 'category', 'Accessories', 'price', 3999, 'stock', 14),
-      jsonb_build_object('id', 'p-102', 'name', '4K Monitor 27"', 'category', 'Displays', 'price', 24999, 'stock', 7)
-    )
-  FROM target_project
-  ON CONFLICT(project_id, table_name)
-  DO UPDATE SET rows = EXCLUDED.rows, updated_at = NOW()
-  RETURNING 1
-)
-SELECT COUNT(*) FROM seeded;
-
-WITH target_project AS (
-  SELECT id FROM projects WHERE is_enabled = true ORDER BY created_at ASC LIMIT 1
-), seeded AS (
-  INSERT INTO project_data_tables (project_id, table_name, rows)
-  SELECT id, 'orders',
-    jsonb_build_array(
-      jsonb_build_object('orderId', 'ORD-9001', 'status', 'shipped', 'eta', '2026-03-19', 'customer', 'Arun'),
-      jsonb_build_object('orderId', 'ORD-9002', 'status', 'processing', 'eta', '2026-03-21', 'customer', 'Riya')
-    )
-  FROM target_project
-  ON CONFLICT(project_id, table_name)
-  DO UPDATE SET rows = EXCLUDED.rows, updated_at = NOW()
-  RETURNING 1
-)
-SELECT COUNT(*) FROM seeded;
+-- Note: no domain sample rows are seeded here.
