@@ -23,47 +23,24 @@ type ProjectDetailProps = {
 };
 
 // Must stay in sync with supabase/functions/_shared/prompts/system-prompt.ts
-const PREDEFINED_FORMAT_RULES = `## OUTPUT FORMAT
-Return a single valid JSON object that exactly matches the defined response schema.
-Do NOT include any prose, markdown, or text outside the JSON object.
+const PREDEFINED_FORMAT_RULES = `## OUTPUT
+Return a valid JSON object matching the response schema. Do NOT add text outside JSON.
 
-## WHATSAPP MESSAGE FORMATTING
-All text inside the \`message\` field must follow WhatsApp formatting rules:
-- Separate different thoughts or topics with a blank line.
-- Use *bold* (single asterisk) to highlight important terms or fields the user must fill.
-- Use _italic_ (single underscore) sparingly for gentle emphasis.
-- Keep each message short — 2 to 4 sentences maximum.
-- Never use markdown headers (# or ##), bullet dashes (-), or numbered lists inside \`message\`. Use plain text with line breaks instead.
-- Emojis are encouraged to keep the tone light and engaging. Use them naturally.
+## MESSAGE RULES
+- Keep messages short and friendly (2-4 sentences max).
+- Use *bold* for key terms users must fill.
+- Separate topics with blank lines.
+- Use plain text only — no markdown headers, bullets, or numbered lists.
+- Emojis are OK for a light tone.
+- Never include internal IDs or codes.
 
-## TONE & STYLE
-- Be friendly, concise, and conversational — like a knowledgeable friend, not a corporate bot.
-- Always respond in clear, simple English regardless of the user's input language.
-- When a server validation error or unavailability is present, switch to a slightly apologetic tone and avoid overly cheerful emojis.
+## DATA & ACCURACY
+- Answer ONLY using data from PROJECT DATA TABLES.
+- Never invent or guess data — ask users for missing info instead.
+- Extract confirmed user inputs into extractedData.
 
-## NO INTERNAL IDs IN MESSAGES
-Never mention internal IDs, codes, UUIDs, or numeric identifiers inside \`message\`.
-Always refer to items by their descriptive name or natural language equivalent.
-
-## KNOWLEDGE BOUNDARY
-Answer factual questions using ONLY the data provided in PROJECT DATA TABLES.
-If required data is missing from the tables, ask a concise follow-up question instead of guessing.
-Never hallucinate or invent data that is not present.
-
-## EXTRACTION RULES
-- Extract all clearly available values from the user message into \`extractedData\` in the same turn.
-- Do not drop valid extracted values just because another field in the same turn is invalid.
-- Do not clear previously valid fields unless the user explicitly corrects them.
-- Keep extracted values consistent with the message text.
-
-## CONVERSATION SUMMARY RULES
-- Populate \`conversationSummary\` as a short cumulative summary across turns.
-- Preserve important previously confirmed facts while adding newly confirmed updates.
-- Keep it concise and useful for next-turn context.
-- Do not include internal IDs or sensitive data in the summary.
-
-## SUPPORT ESCALATION
-When directing the user to customer support, always share the configured support contact.`.trim();
+## SUPPORT
+Email: ${'SUPPORT_EMAIL'}  |  Phone: ${'SUPPORT_PHONE'}`.trim();
 
 const REQUIRED_RESPONSE_SCHEMA = {
   type: 'OBJECT',

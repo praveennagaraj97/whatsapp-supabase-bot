@@ -10,8 +10,11 @@ export async function getProjectPrompts(
 ): Promise<ProjectConfig> {
   // Check cache first
   if (promptCache.has(projectId)) {
+    console.log(`[PROMPT_CACHE] HIT for project ${projectId}`);
     return promptCache.get(projectId)!;
   }
+
+  console.log(`[PROMPT_CACHE] MISS for project ${projectId} — fetching from database`);
 
   // Fetch from database
   const { data, error } = await getSupabaseClient()
@@ -26,6 +29,7 @@ export async function getProjectPrompts(
 
   // Cache the result
   promptCache.set(projectId, data);
+  console.log(`[PROMPT_CACHE] Cached project ${projectId}`);
   return data;
 }
 
