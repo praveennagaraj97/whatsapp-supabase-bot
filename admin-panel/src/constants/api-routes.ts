@@ -6,6 +6,7 @@ export const API_ROUTES = {
   login: "/login",
   projects: "/projects",
   projectDetail: (projectId: string) => `/projects/${projectId}`,
+  projectDataTables: (projectId: string) => `/projects/${projectId}/data`,
   enableProject: (projectId: string) => `/projects/${projectId}/enable`,
   importProjectData: (projectId: string) => `/projects/${projectId}/import`,
   projectPrompts: (projectId: string) => `/projects/${projectId}/prompts`,

@@ -1,6 +1,7 @@
 import { API_ROUTES } from "@/constants/api-routes";
 import type {
   Project,
+  ProjectDataTablesResponse,
   ProjectImportPayload,
   ProjectImportResponse,
   ProjectPromptsResponse,
@@ -49,6 +50,17 @@ export class ProjectDetailService extends BaseAPIService {
       const response = await this.http.post<ProjectImportResponse>(
         API_ROUTES.importProjectData(projectId),
         payload,
+      );
+      return response.data;
+    } catch (error) {
+      throw this.parseError(error);
+    }
+  }
+
+  async getProjectDataTables(projectId: string): Promise<ProjectDataTablesResponse> {
+    try {
+      const response = await this.http.get<ProjectDataTablesResponse>(
+        API_ROUTES.projectDataTables(projectId),
       );
       return response.data;
     } catch (error) {

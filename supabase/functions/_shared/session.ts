@@ -27,6 +27,7 @@ export async function getOrCreateSession(
     project_id: projectId,
     user_id: userId,
     conversation_context: "general",
+    extracted_data: {},
     is_processing: false,
     is_intro_sent: false,
     pause_auto_replies: false,
@@ -102,6 +103,7 @@ export async function startNewSession(
     user_name: session.user_name,
     user_phone: session.user_phone,
     conversation_context: "general",
+    extracted_data: {},
     is_processing: false,
     is_intro_sent: true,
     pause_auto_replies: session.pause_auto_replies,
@@ -143,12 +145,16 @@ export function getMinutesSinceLastMessage(session: UserSession): number {
  * Check if session has meaningful data
  */
 export function sessionHasData(session: UserSession): boolean {
+  const hasExtractedData = !!session.extracted_data &&
+    Object.keys(session.extracted_data).length > 0;
+
   return !!(
     session.symptoms ||
     session.doctor_id ||
     session.clinic_id ||
     session.specialization ||
     session.preferred_date ||
-    (session.medicine_ids && session.medicine_ids.length > 0)
+    (session.medicine_ids && session.medicine_ids.length > 0) ||
+    hasExtractedData
   );
 }

@@ -66,3 +66,21 @@ export type UpdateProjectPromptsPayload = {
   systemPrompt?: string;
   responseSchema?: Record<string, unknown>;
 };
+
+export type ProjectDataTableSummary = {
+  tableName: string;
+  rowCount: number;
+  updatedAt: string | null;
+};
+
+export type ProjectDataTablesResponse = {
+  projectId: string;
+  tables: ProjectDataTableSummary[];
+};
+
+export type ExtractedFieldInput = {
+  id: string;
+  name: string;
+  type: "STRING" | "NUMBER" | "BOOLEAN" | "ARRAY" | "OBJECT";
+  nullable: boolean;
+};

@@ -37,7 +37,10 @@ export default function Home() {
   }
 
   return (
-    <main className="relative isolate min-h-screen overflow-hidden">
+    <main
+      suppressHydrationWarning
+      className="relative isolate min-h-screen overflow-hidden"
+    >
       <div className="pointer-events-none absolute -left-40 top-10 h-80 w-80 rounded-full bg-[radial-gradient(circle_at_center,rgba(37,99,235,0.22),transparent_70%)]" />
       <div className="pointer-events-none absolute -right-32 bottom-12 h-96 w-96 rounded-full bg-[radial-gradient(circle_at_center,rgba(245,158,11,0.2),transparent_70%)]" />
 

@@ -105,11 +105,24 @@ async function handleCacheRefresh(_req: Request): Promise<Response> {
 
 // ─── Apply extracted data to session ───
 function applyExtractedData(
-  _session: UserSession,
+  session: UserSession,
   data: AIPromptResponse["extractedData"],
 ): Partial<UserSession> {
   const update: Partial<UserSession> = {};
-  const extractedUserName = data.userName;
+
+  const mergedExtractedData: Record<string, unknown> = {
+    ...(session.extracted_data || {}),
+  };
+
+  for (const [key, value] of Object.entries(data || {})) {
+    if (value !== undefined) {
+      mergedExtractedData[key] = value;
+    }
+  }
+
+  update.extracted_data = mergedExtractedData;
+
+  const extractedUserName = mergedExtractedData.userName;
   if (typeof extractedUserName === "string" && extractedUserName.trim().length > 0) {
     update.user_name = extractedUserName.trim();
   }
@@ -175,19 +188,7 @@ async function processOneTurn(
       return {
         session,
         aiResponse: {
-          extractedData: {
-            symptoms: null,
-            specialization: null,
-            doctorId: null,
-            doctorName: null,
-            clinicId: null,
-            clinicName: null,
-            preferredDate: null,
-            preferredTime: null,
-            medicineIds: null,
-            medicineNames: null,
-            userName: null,
-          },
+          extractedData: {},
           message: "",
           nextAction: null,
           status: { outcome: "FAILED", reason: "AUDIO_FAILED", field: null },

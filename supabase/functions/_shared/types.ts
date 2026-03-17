@@ -99,6 +99,7 @@ export interface UserSession {
   last_user_message: string | null;
   last_message_timestamp: string | null;
   conversation_summary: string | null;
+  extracted_data: Record<string, unknown> | null;
   doctor_id: string | null;
   doctor_name: string | null;
   clinic_id: string | null;

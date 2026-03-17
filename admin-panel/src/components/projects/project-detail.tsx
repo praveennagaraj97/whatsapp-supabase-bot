@@ -4,13 +4,14 @@ import { AxiosError } from 'axios';
 import { motion } from 'motion/react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
 import { ConfirmModal } from '@/components/confirm-modal';
 import { STORAGE_KEYS } from '@/constants/api-routes';
 import { useProjectDetail } from '@/hooks/api/use-project-detail';
 import { projectDetailService } from '@/services/api/project-detail-service';
+import type { ExtractedFieldInput, ProjectDataTableSummary } from '@/types/api';
 import {
   fetchGoogleSheetsTables,
   type SheetLoadConfig,
@@ -56,6 +57,89 @@ const REQUIRED_RESPONSE_SCHEMA = {
   ],
 };
 
+const EXTRACTED_FIELD_TYPES: ExtractedFieldInput['type'][] = [
+  'STRING',
+  'NUMBER',
+  'BOOLEAN',
+  'ARRAY',
+  'OBJECT',
+];
+
+function createExtractedFieldInput(): ExtractedFieldInput {
+  return {
+    id: crypto.randomUUID(),
+    name: '',
+    type: 'STRING',
+    nullable: true,
+  };
+}
+
+function getExtractedFieldsFromSchema(
+  schema: Record<string, unknown>,
+): ExtractedFieldInput[] {
+  const properties = (
+    schema as {
+      properties?: { extractedData?: { properties?: Record<string, unknown> } };
+    }
+  )?.properties?.extractedData?.properties;
+
+  if (!properties || typeof properties !== 'object') {
+    return [];
+  }
+
+  return Object.entries(properties)
+    .filter(([name]) => name.trim().length > 0)
+    .map(([name, config]) => {
+      const rawType =
+        typeof config === 'object' && config !== null && 'type' in config
+          ? String((config as { type?: unknown }).type).toUpperCase()
+          : 'STRING';
+
+      const normalizedType = EXTRACTED_FIELD_TYPES.includes(
+        rawType as ExtractedFieldInput['type'],
+      )
+        ? (rawType as ExtractedFieldInput['type'])
+        : 'STRING';
+
+      const nullable =
+        typeof config === 'object' && config !== null && 'nullable' in config
+          ? Boolean((config as { nullable?: unknown }).nullable)
+          : true;
+
+      return {
+        id: crypto.randomUUID(),
+        name,
+        type: normalizedType,
+        nullable,
+      };
+    });
+}
+
+function buildResponseSchemaFromExtractedFields(
+  fields: ExtractedFieldInput[],
+): Record<string, unknown> {
+  const extractedProperties = fields.reduce<Record<string, unknown>>(
+    (acc, field) => {
+      const key = field.name.trim();
+      if (!key) return acc;
+      acc[key] = { type: field.type, nullable: field.nullable };
+      return acc;
+    },
+    {},
+  );
+
+  return {
+    ...REQUIRED_RESPONSE_SCHEMA,
+    properties: {
+      ...REQUIRED_RESPONSE_SCHEMA.properties,
+      extractedData: {
+        type: 'OBJECT',
+        properties: extractedProperties,
+      },
+    },
+  };
+}
+
 function getErrorMessage(error: unknown): string {
   if (error instanceof AxiosError) {
     const message =
@@ -90,8 +174,13 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
   const [replaceExisting, setReplaceExisting] = useState(false);
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   const [isSubmittingData, setIsSubmittingData] = useState(false);
-  const [optionalExtractedFieldsText, setOptionalExtractedFieldsText] =
-    useState('{}');
+  const [extractedFields, setExtractedFields] = useState<ExtractedFieldInput[]>(
+    [],
+  );
+  const [existingTables, setExistingTables] = useState<
+    ProjectDataTableSummary[]
+  >([]);
+  const [isLoadingExistingTables, setIsLoadingExistingTables] = useState(false);
   const [isSavingAiConfig, setIsSavingAiConfig] = useState(false);
 
   const project = data?.project;
@@ -102,6 +191,19 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
       setSystemPrompt(project.system_prompt || '');
     }
   }, [project]);
+
+  const loadExistingDataTables = useCallback(async () => {
+    setIsLoadingExistingTables(true);
+    try {
+      const response =
+        await projectDetailService.getProjectDataTables(projectId);
+      setExistingTables(response.tables || []);
+    } catch {
+      setExistingTables([]);
+    } finally {
+      setIsLoadingExistingTables(false);
+    }
+  }, [projectId]);
 
   useEffect(() => {
     let isMounted = true;
@@ -115,33 +217,22 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
         setSystemPrompt(
           response.prompts.systemPrompt || project?.system_prompt || '',
         );
-        const extractedProperties = (
-          response.prompts.responseSchema as {
-            properties?: { extractedData?: { properties?: unknown } };
-          }
-        )?.properties?.extractedData?.properties;
-
-        setOptionalExtractedFieldsText(
-          JSON.stringify(
-            extractedProperties && typeof extractedProperties === 'object'
-              ? extractedProperties
-              : {},
-            null,
-            2,
-          ),
+        setExtractedFields(
+          getExtractedFieldsFromSchema(response.prompts.responseSchema || {}),
         );
       } catch {
         if (!isMounted) return;
-        setOptionalExtractedFieldsText('{}');
+        setExtractedFields([]);
       }
     }
 
     void loadPromptConfig();
+    void loadExistingDataTables();
 
     return () => {
       isMounted = false;
     };
-  }, [project?.system_prompt, projectId]);
+  }, [loadExistingDataTables, project?.system_prompt, projectId]);
 
   async function handleLoadSheetData() {
     if (!dataSourceUrl.trim()) {
@@ -257,6 +348,7 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
 
       toast.success(`Import complete. ${importedSummary}`);
       setIsConfirmModalOpen(false);
+      await loadExistingDataTables();
     } catch (err) {
       const errorMsg = getErrorMessage(err);
       toast.error(errorMsg);
@@ -271,28 +363,8 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
       return;
     }
 
-    let optionalExtractedFields: Record<string, unknown>;
-    try {
-      optionalExtractedFields = JSON.parse(optionalExtractedFieldsText);
-    } catch {
-      toast.error('Optional extracted fields must be valid JSON');
-      return;
-    }
-
-    const responseSchema: Record<string, unknown> = {
-      ...REQUIRED_RESPONSE_SCHEMA,
-      properties: {
-        ...REQUIRED_RESPONSE_SCHEMA.properties,
-        extractedData: {
-          type: 'OBJECT',
-          properties:
-            optionalExtractedFields &&
-            typeof optionalExtractedFields === 'object'
-              ? optionalExtractedFields
-              : {},
-        },
-      },
-    };
+    const responseSchema =
+      buildResponseSchemaFromExtractedFields(extractedFields);
 
     setIsSavingAiConfig(true);
     try {
@@ -312,6 +384,31 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
     localStorage.removeItem(STORAGE_KEYS.adminToken);
     toast.info('Logged out');
     router.push('/');
+  }
+
+  function handleAddExtractedField() {
+    setExtractedFields((prev) => [...prev, createExtractedFieldInput()]);
+  }
+
+  function handleRemoveExtractedField(fieldId: string) {
+    setExtractedFields((prev) => prev.filter((field) => field.id !== fieldId));
+  }
+
+  function handleUpdateExtractedField(
+    fieldId: string,
+    key: keyof Omit<ExtractedFieldInput, 'id'>,
+    value: string | boolean,
+  ) {
+    setExtractedFields((prev) =>
+      prev.map((field) =>
+        field.id === fieldId
+          ? {
+              ...field,
+              [key]: value,
+            }
+          : field,
+      ),
+    );
   }
 
   if (isLoading) {
@@ -395,29 +492,81 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
 
               <label className="block">
                 <span className="text-(--muted) mb-2 block text-sm font-medium">
-                  Required Response Fields
+                  Extraction Fields
                 </span>
-                <textarea
-                  value={JSON.stringify(REQUIRED_RESPONSE_SCHEMA, null, 2)}
-                  readOnly
-                  className="h-52 w-full rounded-xl border border-(--panel-border) bg-white/85 px-4 py-3 font-mono text-xs text-foreground outline-none transition focus:border-(--accent)"
-                />
-              </label>
+                <div className="space-y-2 rounded-xl border border-(--panel-border) bg-white/85 p-3">
+                  {extractedFields.length === 0 ? (
+                    <p className="text-(--muted) text-xs">
+                      No extraction fields yet. Add fields below.
+                    </p>
+                  ) : (
+                    extractedFields.map((field) => (
+                      <div
+                        key={field.id}
+                        className="grid gap-2 sm:grid-cols-[1.4fr_1fr_auto_auto] sm:items-center"
+                      >
+                        <input
+                          value={field.name}
+                          onChange={(event) =>
+                            handleUpdateExtractedField(
+                              field.id,
+                              'name',
+                              event.target.value,
+                            )
+                          }
+                          placeholder="field name (e.g. orderId)"
+                          className="rounded-md border border-(--panel-border) px-2.5 py-2 text-sm outline-none focus:border-(--accent)"
+                        />
+                        <select
+                          value={field.type}
+                          onChange={(event) =>
+                            handleUpdateExtractedField(
+                              field.id,
+                              'type',
+                              event.target.value,
+                            )
+                          }
+                          className="rounded-md border border-(--panel-border) px-2.5 py-2 text-sm outline-none focus:border-(--accent)"
+                        >
+                          {EXTRACTED_FIELD_TYPES.map((fieldType) => (
+                            <option key={fieldType} value={fieldType}>
+                              {fieldType}
+                            </option>
+                          ))}
+                        </select>
+                        <label className="flex items-center gap-1.5 text-xs text-foreground">
+                          <input
+                            type="checkbox"
+                            checked={field.nullable}
+                            onChange={(event) =>
+                              handleUpdateExtractedField(
+                                field.id,
+                                'nullable',
+                                event.target.checked,
+                              )
+                            }
+                          />
+                          Nullable
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveExtractedField(field.id)}
+                          className="rounded-md border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-medium text-red-700 transition hover:bg-red-100"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))
+                  )}
 
-              <label className="block">
-                <span className="text-(--muted) mb-2 block text-sm font-medium">
-                  Optional Extracted Fields (JSON object)
-                </span>
-                <textarea
-                  value={optionalExtractedFieldsText}
-                  onChange={(event) =>
-                    setOptionalExtractedFieldsText(event.target.value)
-                  }
-                  placeholder={
-                    '{\n  "intent": { "type": "STRING", "nullable": true },\n  "orderId": { "type": "STRING", "nullable": true }\n}'
-                  }
-                  className="h-40 w-full rounded-xl border border-(--panel-border) bg-white/85 px-4 py-3 font-mono text-xs text-foreground outline-none transition focus:border-(--accent)"
-                />
+                  <button
+                    type="button"
+                    onClick={handleAddExtractedField}
+                    className="rounded-lg border border-(--panel-border) bg-white px-3 py-1.5 text-xs font-medium text-foreground transition hover:bg-zinc-100"
+                  >
+                    Add Extraction Field
+                  </button>
+                </div>
               </label>
             </div>
 
@@ -443,6 +592,42 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
             <h2 className="mb-4 text-lg font-semibold text-foreground">
               Data Source
             </h2>
+
+            <div className="mb-4 rounded-xl border border-(--panel-border) bg-white/80 p-4">
+              <p className="text-(--muted) text-xs uppercase tracking-[0.22em]">
+                Existing Backend Tables
+              </p>
+              {isLoadingExistingTables ? (
+                <p className="text-(--muted) mt-2 text-sm">
+                  Loading existing data...
+                </p>
+              ) : existingTables.length === 0 ? (
+                <p className="text-(--muted) mt-2 text-sm">
+                  No imported tables yet.
+                </p>
+              ) : (
+                <div className="mt-3 grid gap-2">
+                  {existingTables.map((table) => (
+                    <div
+                      key={table.tableName}
+                      className="grid gap-1 rounded-lg border border-(--panel-border) bg-white p-3 sm:grid-cols-[1fr_auto_auto] sm:items-center"
+                    >
+                      <p className="text-sm font-medium text-foreground">
+                        {table.tableName}
+                      </p>
+                      <p className="text-xs text-zinc-600">
+                        {table.rowCount} rows
+                      </p>
+                      <p className="text-xs text-zinc-500">
+                        {table.updatedAt
+                          ? `updated ${new Date(table.updatedAt).toLocaleString()}`
+                          : 'updated -'}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
 
             <label className="block">
               <span className="text-(--muted) mb-2 block text-sm font-medium">

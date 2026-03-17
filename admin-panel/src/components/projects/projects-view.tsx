@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
+import { ConfirmModal } from '@/components/confirm-modal';
 import { ProjectCard } from '@/components/project-card';
 import { CreateProjectModal } from '@/components/projects/create-project-modal';
 import { projectDetailService } from '@/services/api/project-detail-service';
@@ -41,6 +42,10 @@ export function ProjectsView({
 }: ProjectsViewProps) {
   const router = useRouter();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [pendingDeleteProjectId, setPendingDeleteProjectId] = useState<
+    string | null
+  >(null);
+  const [isDeletingProject, setIsDeletingProject] = useState(false);
 
   function handleLogout() {
     onLogout();
@@ -62,19 +67,25 @@ export function ProjectsView({
     }
   }
 
-  async function handleDeleteProject(id: string) {
-    if (!confirm('Are you sure you want to delete this project?')) {
-      return;
-    }
+  async function handleDeleteProjectConfirm() {
+    if (!pendingDeleteProjectId) return;
 
+    setIsDeletingProject(true);
     try {
-      await projectDetailService.deleteProject(id);
+      await projectDetailService.deleteProject(pendingDeleteProjectId);
       await mutate();
       toast.success('Project deleted successfully');
+      setPendingDeleteProjectId(null);
     } catch (error) {
       const errorMsg = getErrorMessage(error);
       toast.error(errorMsg);
+    } finally {
+      setIsDeletingProject(false);
     }
+  }
+
+  async function handleDeleteProject(id: string): Promise<void> {
+    setPendingDeleteProjectId(id);
   }
 
   return (
@@ -165,6 +176,17 @@ export function ProjectsView({
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
         onCreated={mutate}
+      />
+
+      <ConfirmModal
+        isOpen={pendingDeleteProjectId !== null}
+        title="Delete Project"
+        description="Are you sure you want to delete this project? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        isConfirming={isDeletingProject}
+        onCancel={() => setPendingDeleteProjectId(null)}
+        onConfirm={handleDeleteProjectConfirm}
       />
     </div>
   );

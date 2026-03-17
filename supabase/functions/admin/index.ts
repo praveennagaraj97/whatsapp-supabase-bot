@@ -10,7 +10,7 @@ const port = Number(Deno.env.get("PORT") || "8001");
 function corsHeaders(): HeadersInit {
   return {
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, POST, PATCH, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, Authorization",
   };
 }
@@ -277,6 +277,25 @@ async function updateProject(projectId: string, req: Request): Promise<Response>
   return jsonResponse({ project: data });
 }
 
+async function deleteProject(projectId: string): Promise<Response> {
+  await getProjectById(projectId);
+
+  const { error } = await getSupabaseClient()
+    .from("projects")
+    .delete()
+    .eq("id", projectId);
+
+  if (error) {
+    return errorResponse(`Failed to delete project: ${error.message}`, 500);
+  }
+
+  clearKnowledgeBaseCache(projectId);
+  clearProjectCache();
+  clearPromptsCache(projectId);
+
+  return jsonResponse({ deleted: true, projectId });
+}
+
 async function login(req: Request): Promise<Response> {
   const body = await parseJsonBody(req);
   const email = ensureString(body.email).toLowerCase();
@@ -401,6 +420,28 @@ async function getProject(projectId: string): Promise<Response> {
   return jsonResponse({ project });
 }
 
+async function getProjectDataTables(projectId: string): Promise<Response> {
+  await getProjectById(projectId);
+
+  const { data, error } = await getSupabaseClient()
+    .from("project_data_tables")
+    .select("table_name, rows, updated_at")
+    .eq("project_id", projectId)
+    .order("table_name", { ascending: true });
+
+  if (error) {
+    return errorResponse(`Failed to load project data tables: ${error.message}`, 500);
+  }
+
+  const tables = (data || []).map((entry) => ({
+    tableName: entry.table_name,
+    rowCount: Array.isArray(entry.rows) ? entry.rows.length : 0,
+    updatedAt: entry.updated_at,
+  }));
+
+  return jsonResponse({ projectId, tables });
+}
+
 async function getAdminProfile(req: Request): Promise<Response> {
   const admin = await requireAdminAuth(req);
   return jsonResponse({
@@ -514,6 +555,10 @@ Deno.serve({ port }, async (req: Request): Promise<Response> => {
         if (req.method === "PATCH") {
           return await updateProject(projectId, req);
         }
+
+        if (req.method === "DELETE") {
+          return await deleteProject(projectId);
+        }
       }
 
       if (segments.length === 3 && segments[2] === "enable" && req.method === "POST") {
@@ -523,6 +568,10 @@ Deno.serve({ port }, async (req: Request): Promise<Response> => {
 
       if (segments.length === 3 && segments[2] === "import" && req.method === "POST") {
         return await importProjectData(projectId, req);
+      }
+
+      if (segments.length === 3 && segments[2] === "data" && req.method === "GET") {
+        return await getProjectDataTables(projectId);
       }
 
       if (segments.length === 3 && segments[2] === "prompts") {

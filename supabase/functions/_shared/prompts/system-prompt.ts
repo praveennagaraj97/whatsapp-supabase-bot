@@ -16,6 +16,7 @@ export async function getSystemPrompt(
   const contextSummary = {
     conversationContext: session.conversation_context || "general",
     conversationSummary: session.conversation_summary || null,
+    extractedData: session.extracted_data || {},
     userName: session.user_name || null,
     inputType,
     isTranslatedFromAudio,
