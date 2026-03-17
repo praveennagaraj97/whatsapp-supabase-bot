@@ -1,14 +1,18 @@
-export type ParsedSheetUrl = {
-  sheetId: string;
-  gid?: string;
-};
+import PublicGoogleSheetsParser from "public-google-sheets-parser";
 
 export type SheetTable = {
   key: string;
   name: string;
-  gid: string;
+  source: string;
   rows: Record<string, unknown>[];
   columns: string[];
+  backendKey: string;
+};
+
+export type SheetLoadConfig = {
+  tableName: string;
+  sourceTab?: string;
+  backendKey: string;
 };
 
 function safeKey(value: string): string {
@@ -20,151 +24,84 @@ function safeKey(value: string): string {
     .slice(0, 80);
 }
 
-export function parseGoogleSheetsUrl(url: string): ParsedSheetUrl | null {
-  const match = url.match(/docs\.google\.com\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
-  if (!match) return null;
+export function extractSpreadsheetId(input: string): string | null {
+  const raw = input.trim();
+  if (!raw) return null;
 
-  const gidMatch = url.match(/[?#&]gid=([0-9]+)/);
+  const urlMatch = raw.match(/docs\.google\.com\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+  if (urlMatch?.[1]) {
+    return urlMatch[1];
+  }
 
-  return {
-    sheetId: match[1],
-    gid: gidMatch?.[1],
-  };
+  if (/^[a-zA-Z0-9-_]{20,}$/.test(raw)) {
+    return raw;
+  }
+
+  return null;
 }
 
-function parseGvizJson(raw: string): unknown {
-  const prefix = "google.visualization.Query.setResponse(";
-  const start = raw.indexOf(prefix);
-  if (start === -1) {
-    throw new Error("Invalid Google Visualization response");
+function getColumns(rows: Record<string, unknown>[]): string[] {
+  const unique = new Set<string>();
+
+  for (const row of rows) {
+    for (const key of Object.keys(row)) {
+      unique.add(key);
+    }
   }
 
-  const jsonStart = start + prefix.length;
-  const jsonEnd = raw.lastIndexOf(");");
-  if (jsonEnd === -1) {
-    throw new Error("Malformed Google Visualization payload");
-  }
-
-  const jsonText = raw.slice(jsonStart, jsonEnd);
-  return JSON.parse(jsonText);
+  return [...unique];
 }
 
-async function fetchTableRows(
-  sheetId: string,
-  gid: string,
-): Promise<{ rows: Record<string, unknown>[]; columns: string[] }> {
-  const url =
-    `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?gid=${gid}&headers=1&tqx=out:json`;
+function getParserOption(sourceTab?: string):
+  | { sheetId: string; useFormat: true }
+  | { sheetName: string; useFormat: true }
+  | undefined {
+  const tab = (sourceTab || "").trim();
+  if (!tab) return undefined;
 
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error("Failed to read worksheet data. Ensure the sheet is public.");
+  if (/^[0-9]+$/.test(tab)) {
+    return { sheetId: tab, useFormat: true };
   }
 
-  const raw = await response.text();
-  const payload = parseGvizJson(raw) as {
-    table?: {
-      cols?: { label?: string; id?: string }[];
-      rows?: { c?: { v?: unknown }[] }[];
-    };
-  };
-
-  const cols = payload.table?.cols || [];
-  const rows = payload.table?.rows || [];
-
-  const columns = cols.map((col, index) => {
-    const label = (col.label || "").trim();
-    const fallback = (col.id || `column_${index + 1}`).trim();
-    return label || fallback;
-  });
-
-  const mappedRows: Record<string, unknown>[] = rows
-    .map((row) => {
-      const cells = row.c || [];
-      const mapped: Record<string, unknown> = {};
-
-      for (let i = 0; i < columns.length; i += 1) {
-        mapped[columns[i]] = cells[i]?.v ?? null;
-      }
-
-      return mapped;
-    })
-    .filter((row) => Object.values(row).some((value) => value !== null && value !== ""));
-
-  return { rows: mappedRows, columns };
+  return { sheetName: tab, useFormat: true };
 }
 
-async function fetchWorksheetList(
-  sheetId: string,
-): Promise<{ gid: string; name: string }[]> {
-  const url =
-    `https://spreadsheets.google.com/feeds/worksheets/${sheetId}/public/basic?alt=json`;
-
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(
-      "Unable to read worksheet list. Publish the sheet to web and set visibility to public.",
-    );
+export async function fetchGoogleSheetsTables(
+  sheetInput: string,
+  configs: SheetLoadConfig[],
+): Promise<SheetTable[]> {
+  const spreadsheetId = extractSpreadsheetId(sheetInput);
+  if (!spreadsheetId) {
+    throw new Error("Provide a valid Google Sheet URL or spreadsheet ID");
   }
 
-  const data = (await response.json()) as {
-    feed?: {
-      entry?: Array<{
-        title?: { $t?: string };
-        link?: Array<{ rel?: string; href?: string }>;
-      }>;
-    };
-  };
-
-  const entries = data.feed?.entry || [];
-
-  return entries
-    .map((entry) => {
-      const title = entry.title?.$t || "Sheet";
-      const editLink = entry.link?.find((link) => link.rel?.includes("alternate"));
-      const gidMatch = editLink?.href?.match(/[?#&]gid=([0-9]+)/);
-      const gid = gidMatch?.[1];
-
-      if (!gid) return null;
-
-      return {
-        gid,
-        name: title,
-      };
-    })
-    .filter((entry): entry is { gid: string; name: string } => Boolean(entry));
-}
-
-export async function fetchGoogleSheetsTables(sheetUrl: string): Promise<SheetTable[]> {
-  const parsed = parseGoogleSheetsUrl(sheetUrl);
-  if (!parsed) {
-    throw new Error("Invalid Google Sheets URL format");
+  if (!configs.length) {
+    throw new Error("Add at least one table configuration to load data");
   }
 
-  const worksheetList = await fetchWorksheetList(parsed.sheetId);
-  if (worksheetList.length === 0) {
-    throw new Error("No worksheets found in the provided Google Sheet");
-  }
-
-  const selectedWorksheets = parsed.gid
-    ? worksheetList.filter((sheet) => sheet.gid === parsed.gid)
-    : worksheetList;
-
-  if (selectedWorksheets.length === 0) {
-    throw new Error("The selected tab (gid) was not found in this sheet");
-  }
+  const parser = new PublicGoogleSheetsParser(spreadsheetId);
 
   const tables = await Promise.all(
-    selectedWorksheets.map(async (sheet) => {
-      const table = await fetchTableRows(parsed.sheetId, sheet.gid);
-      const defaultKey = safeKey(sheet.name) || `table_${sheet.gid}`;
+    configs.map(async (config, index) => {
+      const option = getParserOption(config.sourceTab);
+      const rowsRaw = (await parser.parse(
+        spreadsheetId,
+        option,
+      )) as Record<string, unknown>[];
+
+      const rows = rowsRaw.filter((row) => Object.keys(row).length > 0);
+      const columns = getColumns(rows);
+
+      const name = config.tableName.trim() || `Table ${index + 1}`;
+      const backendKey = safeKey(config.backendKey) || `table_${index + 1}`;
 
       return {
-        key: defaultKey,
-        name: sheet.name,
-        gid: sheet.gid,
-        rows: table.rows,
-        columns: table.columns,
+        key: safeKey(`${backendKey}_${name}`) || `table_${index + 1}`,
+        name,
+        source: config.sourceTab?.trim() || "default",
+        rows,
+        columns,
+        backendKey,
       } satisfies SheetTable;
     }),
   );

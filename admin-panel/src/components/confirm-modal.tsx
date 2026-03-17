@@ -1,8 +1,8 @@
 'use client';
 
 import { AnimatePresence, motion } from 'motion/react';
-import { createPortal } from 'react-dom';
 import { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 
 type ConfirmModalProps = {
   isOpen: boolean;
@@ -57,7 +57,9 @@ export function ConfirmModal({
             onClick={(event) => event.stopPropagation()}
           >
             <h3 className="text-lg font-semibold text-foreground">{title}</h3>
-            <p className="text-(--muted) mt-2 text-sm leading-6">{description}</p>
+            <p className="text-(--muted) mt-2 text-sm leading-6">
+              {description}
+            </p>
 
             <div className="mt-6 flex items-center justify-end gap-3">
               <button

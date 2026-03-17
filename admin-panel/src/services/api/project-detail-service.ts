@@ -3,6 +3,8 @@ import type {
   Project,
   ProjectImportPayload,
   ProjectImportResponse,
+  ProjectPromptsResponse,
+  UpdateProjectPromptsPayload,
 } from "@/types/api";
 
 import { BaseAPIService } from "@/services/api/http-client";
@@ -46,6 +48,32 @@ export class ProjectDetailService extends BaseAPIService {
     try {
       const response = await this.http.post<ProjectImportResponse>(
         API_ROUTES.importProjectData(projectId),
+        payload,
+      );
+      return response.data;
+    } catch (error) {
+      throw this.parseError(error);
+    }
+  }
+
+  async getProjectPrompts(projectId: string): Promise<ProjectPromptsResponse> {
+    try {
+      const response = await this.http.get<ProjectPromptsResponse>(
+        API_ROUTES.projectPrompts(projectId),
+      );
+      return response.data;
+    } catch (error) {
+      throw this.parseError(error);
+    }
+  }
+
+  async updateProjectPrompts(
+    projectId: string,
+    payload: UpdateProjectPromptsPayload,
+  ): Promise<ProjectPromptsResponse> {
+    try {
+      const response = await this.http.patch<ProjectPromptsResponse>(
+        API_ROUTES.projectPrompts(projectId),
         payload,
       );
       return response.data;

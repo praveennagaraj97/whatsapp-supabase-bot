@@ -3,10 +3,11 @@
 import { AxiosError } from 'axios';
 import { motion } from 'motion/react';
 import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 import { toast } from 'sonner';
 
-import { Header } from '@/components/header';
 import { ProjectCard } from '@/components/project-card';
+import { CreateProjectModal } from '@/components/projects/create-project-modal';
 import { projectDetailService } from '@/services/api/project-detail-service';
 import { projectService } from '@/services/api/project-service';
 import type { Project } from '@/types/api';
@@ -39,6 +40,7 @@ export function ProjectsView({
   mutate,
 }: ProjectsViewProps) {
   const router = useRouter();
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   function handleLogout() {
     onLogout();
@@ -80,25 +82,45 @@ export function ProjectsView({
       <div className="pointer-events-none absolute -left-36 top-20 h-72 w-72 rounded-full bg-[radial-gradient(circle_at_center,rgba(14,165,233,0.25),transparent_70%)]" />
       <div className="pointer-events-none absolute -right-24 bottom-12 h-80 w-80 rounded-full bg-[radial-gradient(circle_at_center,rgba(245,158,11,0.22),transparent_70%)]" />
 
-      <Header title="Projects" onLogout={handleLogout} />
-
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.3, ease: 'easeOut' }}
-        className="relative z-10 mx-auto max-w-6xl px-6 py-10"
+        className="relative z-10 mx-auto max-w-6xl px-6 py-8"
       >
         <div className="mb-6 rounded-3xl border border-(--panel-border) bg-white/80 p-5 shadow-[0_8px_30px_rgba(15,23,42,0.08)] backdrop-blur-sm">
-          <p className="text-(--muted) text-xs uppercase tracking-[0.24em]">
-            Workspace Overview
-          </p>
-          <p className="mt-2 text-xl font-semibold text-foreground">
-            {projects.length} {projects.length === 1 ? 'Project' : 'Projects'}{' '}
-            Available
-          </p>
-          <p className="text-(--muted) mt-1 text-sm">
-            Manage status, prompts, and data imports from a single dashboard.
-          </p>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-(--muted) text-xs uppercase tracking-[0.24em]">
+                Workspace Overview
+              </p>
+              <p className="mt-2 text-2xl font-semibold text-foreground">
+                {projects.length}{' '}
+                {projects.length === 1 ? 'Project' : 'Projects'} Available
+              </p>
+              <p className="text-(--muted) mt-1 text-sm">
+                Manage status, prompts, and data imports from a single
+                dashboard.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setIsCreateModalOpen(true)}
+                className="rounded-xl bg-foreground px-4 py-2 text-sm font-medium text-white transition hover:opacity-90"
+              >
+                New Project
+              </button>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="rounded-xl border border-(--panel-border) bg-white px-4 py-2 text-sm font-medium text-foreground transition hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700"
+              >
+                Logout
+              </button>
+            </div>
+          </div>
         </div>
 
         {projects.length === 0 ? (
@@ -138,6 +160,12 @@ export function ProjectsView({
           </motion.div>
         )}
       </motion.div>
+
+      <CreateProjectModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        onCreated={mutate}
+      />
     </div>
   );
 }

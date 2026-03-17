@@ -13,11 +13,40 @@ import { useProjectDetail } from '@/hooks/api/use-project-detail';
 import { projectDetailService } from '@/services/api/project-detail-service';
 import {
   fetchGoogleSheetsTables,
+  type SheetLoadConfig,
   type SheetTable,
-} from '@/utils/sheets-parser';
+} from '../../utils/sheets-parser';
 
 type ProjectDetailProps = {
   projectId: string;
+};
+
+const ECOMMERCE_TEMPLATE = {
+  systemPrompt:
+    'You are a commerce assistant. Help users discover products, compare options, track orders, and answer policy questions clearly and concisely.',
+  systemPromptTemplate:
+    'You are {{botName}} for {{projectName}}. Use provided datasets and conversation context to answer accurately. Ask follow-up questions when required details are missing.',
+  userPromptTemplate:
+    'User message: {{userMessage}}\nConversation summary: {{conversationSummary}}\nAvailable data snapshots: {{dataSummary}}\nReturn JSON matching the configured response schema.',
+  responseSchema: {
+    extractedData: {
+      intent: 'string',
+      productId: 'string|null',
+      productName: 'string|null',
+      orderId: 'string|null',
+      quantity: 'number|null',
+      priceRange: 'string|null',
+    },
+    message: 'string',
+    nextAction: 'string|null',
+    status: {
+      outcome: 'SUCCESS|PARTIAL_SUCCESS|FAILED|AMBIGUOUS',
+      reason: 'string|null',
+      field: 'string|null',
+    },
+    options: 'string[]|null',
+    conversationSummary: 'string|null',
+  },
 };
 
 function getErrorMessage(error: unknown): string {
@@ -45,10 +74,20 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
   const [isLoadingSheets, setIsLoadingSheets] = useState(false);
   const [loadedTables, setLoadedTables] = useState<SheetTable[]>([]);
   const [selectedTableKey, setSelectedTableKey] = useState('');
-  const [tableKeyMap, setTableKeyMap] = useState<Record<string, string>>({});
+  const [tableConfigs, setTableConfigs] = useState<SheetLoadConfig[]>([
+    {
+      tableName: 'Sheet 1',
+      sourceTab: '',
+      backendKey: 'products',
+    },
+  ]);
   const [replaceExisting, setReplaceExisting] = useState(false);
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   const [isSubmittingData, setIsSubmittingData] = useState(false);
+  const [systemPromptTemplate, setSystemPromptTemplate] = useState('');
+  const [userPromptTemplate, setUserPromptTemplate] = useState('');
+  const [responseSchemaText, setResponseSchemaText] = useState('{}');
+  const [isSavingAiConfig, setIsSavingAiConfig] = useState(false);
 
   const project = data?.project;
 
@@ -58,6 +97,35 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
       setSystemPrompt(project.system_prompt || '');
     }
   }, [project]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadPromptConfig() {
+      try {
+        const response =
+          await projectDetailService.getProjectPrompts(projectId);
+        if (!isMounted) return;
+
+        setSystemPromptTemplate(response.prompts.systemPromptTemplate || '');
+        setUserPromptTemplate(response.prompts.userPromptTemplate || '');
+        setResponseSchemaText(
+          JSON.stringify(response.prompts.responseSchema || {}, null, 2),
+        );
+      } catch {
+        if (!isMounted) return;
+        setResponseSchemaText(
+          JSON.stringify(ECOMMERCE_TEMPLATE.responseSchema, null, 2),
+        );
+      }
+    }
+
+    void loadPromptConfig();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [projectId]);
 
   async function handleSavePrompt() {
     if (!project || !systemPrompt.trim()) {
@@ -82,38 +150,85 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
 
   async function handleLoadSheetData() {
     if (!dataSourceUrl.trim()) {
-      toast.info('Please enter a Google Sheets URL');
+      toast.info('Please enter a Google Sheets URL or spreadsheet ID');
+      return;
+    }
+
+    const validConfigs = tableConfigs.filter((config) =>
+      config.backendKey.trim(),
+    );
+    if (validConfigs.length === 0) {
+      toast.info('Add at least one table mapping with backend key');
       return;
     }
 
     setIsLoadingSheets(true);
+    const toastId = toast.loading('Loading sheet data...');
     try {
-      const toastId = toast.loading('Loading sheet data...');
-      const tables = await fetchGoogleSheetsTables(dataSourceUrl);
+      const tables = await fetchGoogleSheetsTables(dataSourceUrl, validConfigs);
 
       if (tables.length === 0) {
-        toast.dismiss(toastId);
         toast.info('No rows found in this sheet');
         setLoadedTables([]);
         return;
       }
 
-      const nextMap: Record<string, string> = {};
-      for (const table of tables) {
-        nextMap[table.key] = table.key;
-      }
-
       setLoadedTables(tables);
       setSelectedTableKey(tables[0].key);
-      setTableKeyMap(nextMap);
-      toast.dismiss(toastId);
-      toast.success(`Loaded ${tables.length} table${tables.length > 1 ? 's' : ''}`);
+      toast.success(
+        `Loaded ${tables.length} table${tables.length > 1 ? 's' : ''}`,
+      );
     } catch (err) {
       const errorMsg = getErrorMessage(err);
       toast.error(errorMsg);
     } finally {
+      toast.dismiss(toastId);
       setIsLoadingSheets(false);
     }
+  }
+
+  function handleAddTableConfig() {
+    setTableConfigs((prev) => [
+      ...prev,
+      {
+        tableName: `Sheet ${prev.length + 1}`,
+        sourceTab: '',
+        backendKey: `table_${prev.length + 1}`,
+      },
+    ]);
+  }
+
+  function handleRemoveTableConfig(index: number) {
+    setTableConfigs((prev) =>
+      prev.filter((_, currentIndex) => currentIndex !== index),
+    );
+  }
+
+  function handleUpdateTableConfig(
+    index: number,
+    key: keyof SheetLoadConfig,
+    value: string,
+  ) {
+    setTableConfigs((prev) =>
+      prev.map((config, currentIndex) => {
+        if (currentIndex !== index) return config;
+
+        if (key === 'backendKey') {
+          return {
+            ...config,
+            backendKey: value
+              .trim()
+              .toLowerCase()
+              .replace(/[^a-z0-9_]/g, '_'),
+          };
+        }
+
+        return {
+          ...config,
+          [key]: value,
+        };
+      }),
+    );
   }
 
   async function handleConfirmImport() {
@@ -125,7 +240,7 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
     const normalizedData: Record<string, Record<string, unknown>[]> = {};
 
     for (const table of loadedTables) {
-      const mappedKey = (tableKeyMap[table.key] || '').trim();
+      const mappedKey = (table.backendKey || '').trim();
       if (!mappedKey) {
         toast.error(`Please provide a backend table key for ${table.name}`);
         return;
@@ -141,9 +256,11 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
         replaceExisting,
       });
 
-      toast.success(
-        `Import complete: clinics ${response.imported.clinics}, doctors ${response.imported.doctors}, medicines ${response.imported.medicines}, faqs ${response.imported.faqs}`,
-      );
+      const importedSummary = Object.entries(response.imported)
+        .map(([key, count]) => `${key}: ${count}`)
+        .join(', ');
+
+      toast.success(`Import complete. ${importedSummary}`);
       setIsConfirmModalOpen(false);
     } catch (err) {
       const errorMsg = getErrorMessage(err);
@@ -151,6 +268,46 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
     } finally {
       setIsSubmittingData(false);
     }
+  }
+
+  async function handleSaveAiConfig() {
+    let parsedSchema: Record<string, unknown>;
+    try {
+      parsedSchema = JSON.parse(responseSchemaText);
+    } catch {
+      toast.error('Response schema must be valid JSON');
+      return;
+    }
+
+    setIsSavingAiConfig(true);
+    try {
+      await projectDetailService.updateProjectPrompts(projectId, {
+        systemPromptTemplate,
+        userPromptTemplate,
+        responseSchema: parsedSchema,
+      });
+      toast.success('AI prompt templates and schema updated');
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    } finally {
+      setIsSavingAiConfig(false);
+    }
+  }
+
+  function handleApplyEcommerceTemplate() {
+    setSystemPrompt(ECOMMERCE_TEMPLATE.systemPrompt);
+    setSystemPromptTemplate(ECOMMERCE_TEMPLATE.systemPromptTemplate);
+    setUserPromptTemplate(ECOMMERCE_TEMPLATE.userPromptTemplate);
+    setResponseSchemaText(
+      JSON.stringify(ECOMMERCE_TEMPLATE.responseSchema, null, 2),
+    );
+    setTableConfigs([
+      { tableName: 'Products', sourceTab: '', backendKey: 'products' },
+      { tableName: 'Categories', sourceTab: '', backendKey: 'categories' },
+      { tableName: 'Orders', sourceTab: '', backendKey: 'orders' },
+      { tableName: 'Faqs', sourceTab: '', backendKey: 'faqs' },
+    ]);
+    toast.info('Applied ecommerce test template. You can edit all fields.');
   }
 
   function handleLogout() {
@@ -233,18 +390,93 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
               <textarea
                 value={systemPrompt}
                 onChange={(e) => setSystemPrompt(e.target.value)}
-                placeholder="Enter your system prompt here..."
+                placeholder="Define assistant behavior for your domain (ecommerce, support, education, etc.)"
                 className="h-32 w-full rounded-xl border border-(--panel-border) bg-white/85 px-4 py-3 text-sm text-foreground outline-none transition focus:border-(--accent)"
               />
             </label>
 
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={handleSavePrompt}
+                disabled={isSaving}
+                className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:opacity-50"
+              >
+                {isSaving ? 'Saving...' : 'Save Prompt'}
+              </button>
+              <button
+                type="button"
+                onClick={handleApplyEcommerceTemplate}
+                className="rounded-xl border border-(--panel-border) bg-white px-4 py-2 text-sm font-medium text-foreground transition hover:bg-zinc-100"
+              >
+                Seed Ecommerce Test Template
+              </button>
+            </div>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.15 }}
+            className="rounded-2xl border border-(--panel-border) bg-(--panel) p-6"
+          >
+            <h2 className="mb-4 text-lg font-semibold text-foreground">
+              AI Templates and Response Schema
+            </h2>
+
+            <div className="grid gap-4">
+              <label className="block">
+                <span className="text-(--muted) mb-2 block text-sm font-medium">
+                  System Prompt Template
+                </span>
+                <textarea
+                  value={systemPromptTemplate}
+                  onChange={(event) =>
+                    setSystemPromptTemplate(event.target.value)
+                  }
+                  placeholder="Template with placeholders, e.g. {{projectName}}"
+                  className="h-28 w-full rounded-xl border border-(--panel-border) bg-white/85 px-4 py-3 text-sm text-foreground outline-none transition focus:border-(--accent)"
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-(--muted) mb-2 block text-sm font-medium">
+                  User Prompt Template
+                </span>
+                <textarea
+                  value={userPromptTemplate}
+                  onChange={(event) =>
+                    setUserPromptTemplate(event.target.value)
+                  }
+                  placeholder="Template combining user message and contextual data"
+                  className="h-28 w-full rounded-xl border border-(--panel-border) bg-white/85 px-4 py-3 text-sm text-foreground outline-none transition focus:border-(--accent)"
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-(--muted) mb-2 block text-sm font-medium">
+                  Response Schema (JSON)
+                </span>
+                <textarea
+                  value={responseSchemaText}
+                  onChange={(event) =>
+                    setResponseSchemaText(event.target.value)
+                  }
+                  placeholder={
+                    '{\n  "message": "string",\n  "nextAction": "string|null"\n}'
+                  }
+                  className="h-52 w-full rounded-xl border border-(--panel-border) bg-white/85 px-4 py-3 font-mono text-xs text-foreground outline-none transition focus:border-(--accent)"
+                />
+              </label>
+            </div>
+
             <button
               type="button"
-              onClick={handleSavePrompt}
-              disabled={isSaving}
-              className="mt-4 rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:opacity-50"
+              onClick={handleSaveAiConfig}
+              disabled={isSavingAiConfig}
+              className="mt-4 rounded-xl bg-foreground px-4 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-60"
             >
-              {isSaving ? 'Saving...' : 'Save Prompt'}
+              {isSavingAiConfig ? 'Saving AI Config...' : 'Save AI Config'}
             </button>
           </motion.div>
 
@@ -261,10 +493,10 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
 
             <label className="block">
               <span className="text-(--muted) mb-2 block text-sm font-medium">
-                Google Sheets URL
+                Google Sheets URL or Spreadsheet ID
               </span>
               <input
-                type="url"
+                type="text"
                 value={dataSourceUrl}
                 onChange={(e) => setDataSourceUrl(e.target.value)}
                 placeholder="https://docs.google.com/spreadsheets/d/..."
@@ -273,9 +505,89 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
             </label>
 
             <p className="text-(--muted) mt-2 text-xs">
-              Paste a public Google Sheets URL to load data. The sheet must be
-              shared publicly.
+              Paste a public Google Sheets URL or direct spreadsheet ID. Map
+              each table to any domain key (for example: products, courses,
+              tickets).
             </p>
+
+            <div className="mt-4 rounded-xl border border-(--panel-border) bg-white/80 p-4">
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <p className="text-(--muted) text-xs uppercase tracking-[0.22em]">
+                  Table Configuration
+                </p>
+                <button
+                  type="button"
+                  onClick={handleAddTableConfig}
+                  className="rounded-lg border border-(--panel-border) bg-white px-3 py-1.5 text-xs font-medium text-foreground transition hover:bg-zinc-100"
+                >
+                  Add Table
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                {tableConfigs.map((config, index) => (
+                  <div
+                    key={`config-${index}`}
+                    className="grid gap-2 rounded-lg border border-(--panel-border) bg-white p-3"
+                  >
+                    <div className="grid gap-2 sm:grid-cols-3">
+                      <input
+                        value={config.tableName}
+                        onChange={(event) =>
+                          handleUpdateTableConfig(
+                            index,
+                            'tableName',
+                            event.target.value,
+                          )
+                        }
+                        placeholder="Table label"
+                        className="rounded-md border border-(--panel-border) px-2.5 py-2 text-sm outline-none focus:border-(--accent)"
+                      />
+                      <input
+                        value={config.sourceTab || ''}
+                        onChange={(event) =>
+                          handleUpdateTableConfig(
+                            index,
+                            'sourceTab',
+                            event.target.value,
+                          )
+                        }
+                        placeholder="GID or Sheet Name (optional)"
+                        className="rounded-md border border-(--panel-border) px-2.5 py-2 text-sm outline-none focus:border-(--accent)"
+                      />
+                      <input
+                        value={config.backendKey}
+                        onChange={(event) =>
+                          handleUpdateTableConfig(
+                            index,
+                            'backendKey',
+                            event.target.value,
+                          )
+                        }
+                        placeholder="backend key"
+                        className="rounded-md border border-(--panel-border) px-2.5 py-2 text-sm outline-none focus:border-(--accent)"
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <p className="text-(--muted) text-xs">
+                        Use GID for exact tab targeting. Leave empty for default
+                        sheet.
+                      </p>
+                      {tableConfigs.length > 1 ? (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveTableConfig(index)}
+                          className="rounded-md border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-medium text-red-700 transition hover:bg-red-100"
+                        >
+                          Remove
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
 
             <button
               type="button"
@@ -305,9 +617,11 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
                             : 'border-(--panel-border) bg-white hover:bg-zinc-50'
                         }`}
                       >
-                        <p className="text-sm font-semibold text-foreground">{table.name}</p>
+                        <p className="text-sm font-semibold text-foreground">
+                          {table.name}
+                        </p>
                         <p className="text-(--muted) text-xs">
-                          {table.rows.length} rows - gid {table.gid}
+                          {table.rows.length} rows - source {table.source}
                         </p>
                       </button>
                     ))}
@@ -316,31 +630,24 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
 
                 <div className="rounded-xl border border-(--panel-border) bg-white/80 p-4">
                   <p className="text-(--muted) text-xs uppercase tracking-[0.22em]">
-                    Backend Mapping
+                    Loaded Mapping
                   </p>
 
                   <div className="mt-3 grid gap-3">
                     {loadedTables.map((table) => (
                       <div
                         key={`map-${table.key}`}
-                        className="grid gap-2 sm:grid-cols-[1fr_1fr] sm:items-center"
+                        className="grid gap-2 rounded-lg border border-(--panel-border) bg-white p-3 sm:grid-cols-[1fr_1fr_1fr] sm:items-center"
                       >
-                        <p className="text-sm font-medium text-foreground">{table.name}</p>
-                        <input
-                          type="text"
-                          value={tableKeyMap[table.key] || ''}
-                          onChange={(event) => {
-                            setTableKeyMap((prev) => ({
-                              ...prev,
-                              [table.key]: event.target.value
-                                .trim()
-                                .toLowerCase()
-                                .replace(/[^a-z0-9_]/g, '_'),
-                            }));
-                          }}
-                          placeholder="clinics, doctors, medicines, faqs"
-                          className="w-full rounded-lg border border-(--panel-border) bg-white px-3 py-2 text-sm text-foreground outline-none transition focus:border-(--accent)"
-                        />
+                        <p className="text-sm font-medium text-foreground">
+                          {table.name}
+                        </p>
+                        <p className="text-xs text-zinc-600">
+                          source: {table.source}
+                        </p>
+                        <p className="text-xs font-semibold text-blue-700">
+                          backend: {table.backendKey}
+                        </p>
                       </div>
                     ))}
                   </div>
@@ -353,7 +660,8 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
                         {selectedTable.name} Preview
                       </p>
                       <p className="text-(--muted) text-xs">
-                        Showing first {Math.min(8, selectedTable.rows.length)} rows
+                        Showing first {Math.min(8, selectedTable.rows.length)}{' '}
+                        rows
                       </p>
                     </div>
 
@@ -372,22 +680,24 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
                           </tr>
                         </thead>
                         <tbody>
-                          {selectedTable.rows.slice(0, 8).map((row, rowIndex) => (
-                            <tr
-                              key={`row-${rowIndex}`}
-                              className="odd:bg-white even:bg-zinc-50/60"
-                            >
-                              {selectedTable.columns.map((column) => (
-                                <td
-                                  key={`${rowIndex}-${column}`}
-                                  className="max-w-55 truncate border-b border-(--panel-border) px-3 py-2 align-top text-xs text-zinc-700"
-                                  title={String(row[column] ?? '')}
-                                >
-                                  {String(row[column] ?? '')}
-                                </td>
-                              ))}
-                            </tr>
-                          ))}
+                          {selectedTable.rows
+                            .slice(0, 8)
+                            .map((row, rowIndex) => (
+                              <tr
+                                key={`row-${rowIndex}`}
+                                className="odd:bg-white even:bg-zinc-50/60"
+                              >
+                                {selectedTable.columns.map((column) => (
+                                  <td
+                                    key={`${rowIndex}-${column}`}
+                                    className="max-w-55 truncate border-b border-(--panel-border) px-3 py-2 align-top text-xs text-zinc-700"
+                                    title={String(row[column] ?? '')}
+                                  >
+                                    {String(row[column] ?? '')}
+                                  </td>
+                                ))}
+                              </tr>
+                            ))}
                         </tbody>
                       </table>
                     </div>
@@ -398,7 +708,9 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
                   <input
                     type="checkbox"
                     checked={replaceExisting}
-                    onChange={(event) => setReplaceExisting(event.target.checked)}
+                    onChange={(event) =>
+                      setReplaceExisting(event.target.checked)
+                    }
                     className="h-4 w-4 rounded border-(--panel-border)"
                   />
                   Replace existing project data before import

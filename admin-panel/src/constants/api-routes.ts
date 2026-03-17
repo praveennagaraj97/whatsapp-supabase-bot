@@ -8,6 +8,7 @@ export const API_ROUTES = {
   projectDetail: (projectId: string) => `/projects/${projectId}`,
   enableProject: (projectId: string) => `/projects/${projectId}/enable`,
   importProjectData: (projectId: string) => `/projects/${projectId}/import`,
+  projectPrompts: (projectId: string) => `/projects/${projectId}/prompts`,
   updateProject: (projectId: string) => `/projects/${projectId}`,
   deleteProject: (projectId: string) => `/projects/${projectId}`,
 } as const;

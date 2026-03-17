@@ -29,6 +29,18 @@ export type ProjectsResponse = {
   projects: Project[];
 };
 
+export type CreateProjectPayload = {
+  name: string;
+  slug?: string;
+  bot_name?: string;
+  description?: string;
+  system_prompt?: string;
+};
+
+export type CreateProjectResponse = {
+  project: Project;
+};
+
 export type ProjectImportPayload = {
   data: Record<string, Record<string, unknown>[]>;
   replaceExisting?: boolean;
@@ -36,11 +48,23 @@ export type ProjectImportPayload = {
 
 export type ProjectImportResponse = {
   projectId: string;
-  imported: {
-    clinics: number;
-    doctors: number;
-    medicines: number;
-    faqs: number;
-  };
+  imported: Record<string, number>;
   replaceExisting: boolean;
+};
+
+export type ProjectPrompts = {
+  systemPromptTemplate: string | null;
+  userPromptTemplate: string | null;
+  responseSchema: Record<string, unknown>;
+};
+
+export type ProjectPromptsResponse = {
+  projectId: string;
+  prompts: ProjectPrompts;
+};
+
+export type UpdateProjectPromptsPayload = {
+  systemPromptTemplate?: string;
+  userPromptTemplate?: string;
+  responseSchema?: Record<string, unknown>;
 };
