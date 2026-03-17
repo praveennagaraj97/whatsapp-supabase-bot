@@ -77,9 +77,7 @@ export async function deleteSession(
 ): Promise<void> {
   const supabase = getSupabaseClient();
   await supabase.from("user_sessions").delete().eq("project_id", projectId).eq("user_id", userId);
-  await supabase.from("appointments").delete().eq("project_id", projectId).eq("user_id", userId);
   await supabase.from("chat_messages").delete().eq("project_id", projectId).eq("user_id", userId);
-  await supabase.from("medicine_orders").delete().eq("project_id", projectId).eq("user_id", userId);
   await supabase.from("queued_messages").delete().eq("project_id", projectId).eq("user_id", userId);
 }
 
@@ -145,16 +143,6 @@ export function getMinutesSinceLastMessage(session: UserSession): number {
  * Check if session has meaningful data
  */
 export function sessionHasData(session: UserSession): boolean {
-  const hasExtractedData = !!session.extracted_data &&
+  return !!session.extracted_data &&
     Object.keys(session.extracted_data).length > 0;
-
-  return !!(
-    session.symptoms ||
-    session.doctor_id ||
-    session.clinic_id ||
-    session.specialization ||
-    session.preferred_date ||
-    (session.medicine_ids && session.medicine_ids.length > 0) ||
-    hasExtractedData
-  );
 }

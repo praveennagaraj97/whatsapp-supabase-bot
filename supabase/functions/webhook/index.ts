@@ -313,13 +313,7 @@ async function handleMessage(
 
       // Refresh session
       const { session: refreshed } = await getOrCreateSession(project.id, message.from);
-      // Preserve critical fields
-      if (currentSession.doctor_id) {
-        refreshed.doctor_id = currentSession.doctor_id;
-      }
-      if (currentSession.medicine_ids) {
-        refreshed.medicine_ids = currentSession.medicine_ids;
-      }
+      // Preserve in-progress conversation summary
       if (currentSession.conversation_summary) {
         refreshed.conversation_summary = currentSession.conversation_summary;
       }

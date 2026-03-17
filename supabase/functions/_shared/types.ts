@@ -100,16 +100,6 @@ export interface UserSession {
   last_message_timestamp: string | null;
   conversation_summary: string | null;
   extracted_data: Record<string, unknown> | null;
-  doctor_id: string | null;
-  doctor_name: string | null;
-  clinic_id: string | null;
-  clinic_name: string | null;
-  specialization: string | null;
-  preferred_date: string | null;
-  preferred_time: string | null;
-  symptoms: string | null;
-  medicine_ids: string[] | null;
-  medicine_names: string[] | null;
   is_processing: boolean;
   processing_started_at: string | null;
   is_intro_sent: boolean;
