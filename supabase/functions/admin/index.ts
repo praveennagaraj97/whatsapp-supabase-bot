@@ -1,6 +1,8 @@
 import { issueAdminToken, requireAdminAuth, verifyAdminPassword } from "../_shared/admin-auth.ts";
 import { clearKnowledgeBaseCache } from "../_shared/knowledge-base.ts";
 import { clearProjectCache } from "../_shared/projects.ts";
+import { clearPromptsCache, getResponseSchema } from "../_shared/prompts-manager.ts";
+import { cacheProjectPrompts } from "../_shared/prompt-cache.ts";
 import { getSupabaseClient } from "../_shared/supabase-client.ts";
 import type { AdminUser, ProjectConfig } from "../_shared/types.ts";
 
@@ -146,6 +148,11 @@ async function setEnabledProject(projectId: string): Promise<void> {
   }
 
   clearProjectCache();
+
+  // Cache prompts to filesystem for fast reads on every message
+  const project = await getProjectById(projectId);
+  await cacheProjectPrompts(project);
+  console.log(`✓ Project enabled: ${project.name} (cached prompts)`);
 }
 
 async function listProjects(): Promise<Response> {
@@ -510,6 +517,78 @@ async function getAdminProfile(req: Request): Promise<Response> {
   });
 }
 
+async function getProjectPrompts(projectId: string): Promise<Response> {
+  const project = await getProjectById(projectId);
+  const responseSchema = project.response_schema || await getResponseSchema(projectId);
+
+  return jsonResponse({
+    projectId: project.id,
+    prompts: {
+      systemPromptTemplate: project.system_prompt_template || null,
+      userPromptTemplate: project.user_prompt_template || null,
+      responseSchema: responseSchema,
+    },
+  });
+}
+
+async function updateProjectPrompts(
+  projectId: string,
+  req: Request,
+): Promise<Response> {
+  const project = await getProjectById(projectId);
+  const body = await parseJsonBody(req);
+  const updates: Record<string, unknown> = {};
+
+  if ("system_prompt_template" in body || "systemPromptTemplate" in body) {
+    const template = ensureString(body.system_prompt_template) ||
+      ensureString(body.systemPromptTemplate);
+    if (template) {
+      updates.system_prompt_template = template;
+    }
+  }
+
+  if ("user_prompt_template" in body || "userPromptTemplate" in body) {
+    const template = ensureString(body.user_prompt_template) ||
+      ensureString(body.userPromptTemplate);
+    if (template) {
+      updates.user_prompt_template = template;
+    }
+  }
+
+  if ("response_schema" in body || "responseSchema" in body) {
+    const schema = body.response_schema || body.responseSchema;
+    if (typeof schema === "object" && schema !== null) {
+      updates.response_schema = schema;
+    }
+  }
+
+  if (Object.keys(updates).length === 0) {
+    return errorResponse("No prompt fields to update", 400);
+  }
+
+  const { data, error } = await getSupabaseClient()
+    .from("projects")
+    .update(updates)
+    .eq("id", projectId)
+    .select("*")
+    .single();
+
+  if (error) {
+    return errorResponse(`Failed to update prompts: ${error.message}`, 500);
+  }
+
+  clearPromptsCache(projectId);
+
+  return jsonResponse({
+    projectId: project.id,
+    prompts: {
+      systemPromptTemplate: data.system_prompt_template || null,
+      userPromptTemplate: data.user_prompt_template || null,
+      responseSchema: data.response_schema || await getResponseSchema(projectId),
+    },
+  });
+}
+
 Deno.serve({ port }, async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: corsHeaders() });
@@ -559,6 +638,16 @@ Deno.serve({ port }, async (req: Request): Promise<Response> => {
 
       if (segments.length === 3 && segments[2] === "import" && req.method === "POST") {
         return await importProjectData(projectId, req);
+      }
+
+      if (segments.length === 3 && segments[2] === "prompts") {
+        if (req.method === "GET") {
+          return await getProjectPrompts(projectId);
+        }
+
+        if (req.method === "PATCH") {
+          return await updateProjectPrompts(projectId, req);
+        }
       }
     }
 

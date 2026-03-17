@@ -1,0 +1,307 @@
+{
+  "info": {
+    "name": "Universal WhatsApp Bot Admin API",
+    "description": "Complete admin API collection for managing multi-purpose WhatsApp bot projects, authentication, and dynamic prompts. Works for any industry: healthcare, restaurants, customer service, e-commerce, etc.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Admin Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@yourbot.in\",\n  \"password\": \"ChangeMe@123456\"\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/admin/login",
+              "host": ["{{BASE_URL}}"],
+              "path": ["admin", "login"]
+            },
+            "description": "Login with admin credentials to get JWT bearer token. Default credentials provided at setup time."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Admin Profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ADMIN_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/admin/me",
+              "host": ["{{BASE_URL}}"],
+              "path": ["admin", "me"]
+            },
+            "description": "Get current admin user profile information"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Projects Management",
+      "item": [
+        {
+          "name": "List All Projects",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ADMIN_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/admin/projects",
+              "host": ["{{BASE_URL}}"],
+              "path": ["admin", "projects"]
+            },
+            "description": "Get list of all projects"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Project Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ADMIN_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/admin/projects/{{PROJECT_ID}}",
+              "host": ["{{BASE_URL}}"],
+              "path": ["admin", "projects", "{{PROJECT_ID}}"]
+            },
+            "description": "Get details of a specific project"
+          },
+          "response": []
+        },
+        {
+          "name": "Create New Project",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ADMIN_TOKEN}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Pizza Palace Restaurant\",\n  \"slug\": \"pizza-palace\",\n  \"botName\": \"PizzaBot\",\n  \"description\": \"WhatsApp bot for Pizza Palace - table reservations, menu orders, delivery tracking\",\n  \"systemPrompt\": \"You are a friendly restaurant assistant for Pizza Palace. Help customers make reservations, order food, and track deliveries. Only recommend items from the menu.\",\n  \"welcomeMessage\": \"Welcome to *Pizza Palace*! 🍕 I can help with menu, reservations, and deliveries. What can I do for you?\",\n  \"isEnabled\": false\n}\n\n## OTHER EXAMPLES:\n\n# Example 2: Healthcare System\n{\n  \"name\": \"City Hospital Network\",\n  \"slug\": \"city-hospital\",\n  \"botName\": \"HealthBot\",\n  \"description\": \"Doctor appointments, medicines, health FAQs\",\n  \"systemPrompt\": \"You are a healthcare assistant for City Hospital. Help with symptoms, appointments, and prescriptions.\",\n  \"welcomeMessage\": \"Welcome to City Hospital! I can help with appointments and health information.\"\n}\n\n# Example 3: E-Commerce\n{\n  \"name\": \"TechShop Store\",\n  \"slug\": \"techshop\",\n  \"botName\": \"ShopBot\",\n  \"description\": \"Product catalog, order tracking, support\",\n  \"systemPrompt\": \"You are TechShop assistant. Help customers find products, placing orders, and tracking shipments.\",\n  \"welcomeMessage\": \"Welcome to TechShop! Browse products, track orders, and get support.\"\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/admin/projects",
+              "host": ["{{BASE_URL}}"],
+              "path": ["admin", "projects"]
+            },
+            "description": "Create a new project for ANY use case (restaurants, healthcare, e-commerce, customer support, etc.)"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Project",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ADMIN_TOKEN}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Apollo Hospitals Delhi - Updated\",\n  \"botName\": \"Apollo Health Assistant\",\n  \"description\": \"Updated healthcare bot for Apollo Hospitals\",\n  \"systemPrompt\": \"You are Apollo Health Assistant. Follow all safety protocols.\",\n  \"welcomeMessage\": \"Welcome to Apollo Health! How can I assist you today?\"\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/admin/projects/{{PROJECT_ID}}",
+              "host": ["{{BASE_URL}}"],
+              "path": ["admin", "projects", "{{PROJECT_ID}}"]
+            },
+            "description": "Update project settings"
+          },
+          "response": []
+        },
+        {
+          "name": "Enable Project",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ADMIN_TOKEN}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/admin/projects/{{PROJECT_ID}}/enable",
+              "host": ["{{BASE_URL}}"],
+              "path": ["admin", "projects", "{{PROJECT_ID}}", "enable"]
+            },
+            "description": "Enable a project (only one project can be enabled at a time - previous enabled project will be disabled)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Prompt Management",
+      "item": [
+        {
+          "name": "Get Project Prompts",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ADMIN_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/admin/projects/{{PROJECT_ID}}/prompts",
+              "host": ["{{BASE_URL}}"],
+              "path": ["admin", "projects", "{{PROJECT_ID}}", "prompts"]
+            },
+            "description": "Get system prompt, user prompt template, and response schema for a project"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Project Prompts",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ADMIN_TOKEN}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"systemPromptTemplate\": \"You are **{{botName}}**, a healthcare assistant for {{projectName}}.\\n\\n## YOUR ROLE\\n- Help patients discuss symptoms and get general health guidance\\n- Help book doctor appointments based on specialization\\n- Help order medicines\\n- Answer health-related FAQs\\n\\n## SAFETY RULES\\n- For emergency symptoms: IMMEDIATELY recommend calling 108 or 112\\n- NEVER provide definitive diagnoses\\n- For prescription medicines: ALWAYS require doctor consultation\\n\\n## SUPPORT\\nEmail: {{supportEmail}}\\nPhone: {{supportPhone}}\",\n  \"userPromptTemplate\": \"## CURRENT CONTEXT\\n- Time: {{currentTime}}\\n- Input Type: {{inputType}}\\n- Patient: {{userName}} ({{userPhone}})\\n- Project: {{projectName}}\\n- Audio Translation: {{isTranslatedFromAudio}}\\n{{audioNote}}\\n\\n## SESSION STATE\\n{{sessionState}}\\n\\n## KNOWLEDGE BASE\\n{{knowledgeBase}}\\n\\n## USER MESSAGE\\n{{userInput}}\",\n  \"responseSchema\": {\n    \"type\": \"OBJECT\",\n    \"properties\": {\n      \"extractedData\": {\n        \"type\": \"OBJECT\",\n        \"properties\": {\n          \"symptoms\": { \"type\": \"STRING\", \"nullable\": true },\n          \"specialization\": { \"type\": \"STRING\", \"nullable\": true },\n          \"doctorId\": { \"type\": \"STRING\", \"nullable\": true },\n          \"doctorName\": { \"type\": \"STRING\", \"nullable\": true },\n          \"userName\": { \"type\": \"STRING\", \"nullable\": true }\n        }\n      },\n      \"message\": { \"type\": \"STRING\" },\n      \"nextAction\": { \"type\": \"STRING\", \"nullable\": true },\n      \"status\": {\n        \"type\": \"OBJECT\",\n        \"properties\": {\n          \"outcome\": { \"type\": \"STRING\", \"enum\": [\"SUCCESS\", \"FAILED\"] }\n        }\n      }\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/admin/projects/{{PROJECT_ID}}/prompts",
+              "host": ["{{BASE_URL}}"],
+              "path": ["admin", "projects", "{{PROJECT_ID}}", "prompts"]
+            },
+            "description": "Update system prompt, user prompt template, and/or response schema for a project. All placeholders in templates will be replaced at runtime with actual values."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Data Import",
+      "item": [
+        {
+          "name": "Import Project Data (Non-Destructive)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ADMIN_TOKEN}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"replaceExisting\": false,\n  \"clinics\": [\n    {\n      \"id\": \"clinic-001\",\n      \"name\": \"Apollo Main clinic\",\n      \"address\": \"123 Health Street, Delhi\",\n      \"city\": \"Delhi\",\n      \"phone\": \"+91-11-1234-5678\",\n      \"email\": \"info@apollo-main.in\",\n      \"operatingHours\": \"9:00 AM - 9:00 PM\",\n      \"specializations\": \"General, Cardiology, Orthopedics\",\n      \"rating\": 4.8,\n      \"isActive\": true\n    }\n  ],\n  \"doctors\": [\n    {\n      \"id\": \"dr-001\",\n      \"name\": \"Dr. Ananya Sharma\",\n      \"specialization\": \"Cardiology\",\n      \"clinicId\": \"clinic-001\",\n      \"clinicName\": \"Apollo Main clinic\",\n      \"experienceYears\": 15,\n      \"qualification\": \"MD, DM Cardiology\",\n      \"availableDays\": \"Monday, Tuesday, Wednesday, Friday\",\n      \"availableTimeStart\": \"10:00\",\n      \"availableTimeEnd\": \"14:00\",\n      \"consultationFee\": 500,\n      \"rating\": 4.9,\n      \"languages\": \"Hindi, English\",\n      \"bio\": \"Expert in interventional cardiology and arrhythmia management\",\n      \"isActive\": true\n    },\n    {\n      \"id\": \"dr-002\",\n      \"name\": \"Dr. Raj Patel\",\n      \"specialization\": \"Orthopedics\",\n      \"clinicId\": \"clinic-001\",\n      \"clinicName\": \"Apollo Main clinic\",\n      \"experienceYears\": 12,\n      \"qualification\": \"MS Orthopedic Surgery\",\n      \"availableDays\": \"Tuesday, Wednesday, Thursday, Saturday\",\n      \"availableTimeStart\": \"15:00\",\n      \"availableTimeEnd\": \"19:00\",\n      \"consultationFee\": 400,\n      \"rating\": 4.7,\n      \"languages\": \"Hindi, English, Gujarati\",\n      \"bio\": \"Specialist in joint replacement and sports injuries\",\n      \"isActive\": true\n    }\n  ],\n  \"medicines\": [\n    {\n      \"id\": \"med-001\",\n      \"name\": \"Aspirin 325mg\",\n      \"genericName\": \"Acetylsalicylic Acid\",\n      \"category\": \"Pain Relief\",\n      \"description\": \"Commonly used pain reliever and fever reducer\",\n      \"dosageForm\": \"Tablet\",\n      \"strength\": \"325mg\",\n      \"price\": 50,\n      \"requiresPrescription\": false,\n      \"manufacturer\": \"Pharma Inc\",\n      \"inStock\": true\n    },\n    {\n      \"id\": \"med-002\",\n      \"name\": \"Metformin 500mg\",\n      \"genericName\": \"Metformin Hydrochloride\",\n      \"category\": \"Diabetes\",\n      \"description\": \"First-line treatment for type 2 diabetes\",\n      \"dosageForm\": \"Tablet\",\n      \"strength\": \"500mg\",\n      \"price\": 120,\n      \"requiresPrescription\": true,\n      \"manufacturer\": \"Care Pharma\",\n      \"inStock\": true\n    }\n  ],\n  \"faqs\": [\n    {\n      \"id\": \"faq-001\",\n      \"question\": \"What should I do if I have severe chest pain?\",\n      \"answer\": \"If you experience severe chest pain, shortness of breath, or pain radiating to your arm, call 108 (emergency) or visit the nearest hospital immediately. Do not drive yourself.\",\n      \"category\": \"EMERGENCY\",\n      \"isActive\": true\n    },\n    {\n      \"id\": \"faq-002\",\n      \"question\": \"How do I book a doctor appointment?\",\n      \"answer\": \"To book an appointment, tell me about your symptoms and preferred specialization. I will show you available doctors and their timings. You can then select a doctor and confirm your preferred date and time.\",\n      \"category\": \"BOOKING\",\n      \"isActive\": true\n    },\n    {\n      \"id\": \"faq-003\",\n      \"question\": \"Can I order medicines without a prescription?\",\n      \"answer\": \"Over-the-counter (OTC) medicines can be ordered directly. For prescription medicines, you need to have a valid prescription from a registered doctor or book a consultation with one of our doctors first.\",\n      \"category\": \"MEDICINE\",\n      \"isActive\": true\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/admin/projects/{{PROJECT_ID}}/import",
+              "host": ["{{BASE_URL}}"],
+              "path": ["admin", "projects", "{{PROJECT_ID}}", "import"]
+            },
+            "description": "Import project data (clinics, doctors, medicines, FAQs) with non-destructive merge (default). When replaceExisting is true, existing data will be deleted first."
+          },
+          "response": []
+        },
+        {
+          "name": "Import Project Data (Replace Existing)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ADMIN_TOKEN}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"replaceExisting\": true,\n  \"clinics\": [],\n  \"doctors\": [],\n  \"medicines\": [],\n  \"faqs\": []\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/admin/projects/{{PROJECT_ID}}/import",
+              "host": ["{{BASE_URL}}"],
+              "path": ["admin", "projects", "{{PROJECT_ID}}", "import"]
+            },
+            "description": "Import project data with replaceExisting=true to delete all existing data first (destructive update). Useful for complete data refresh."
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "BASE_URL",
+      "value": "https://your-supabase-project.supabase.co/functions/v1",
+      "type": "default"
+    },
+    {
+      "key": "ADMIN_TOKEN",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "PROJECT_ID",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}

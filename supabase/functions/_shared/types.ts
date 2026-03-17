@@ -63,6 +63,12 @@ export interface SimplifiedMessage {
   profileName?: string;
 }
 
+export interface PromptConfig {
+  user_prompt_template: string;
+  system_prompt_template: string;
+  response_schema: Record<string, unknown>;
+}
+
 export interface ProjectConfig {
   id: string;
   name: string;
@@ -71,6 +77,9 @@ export interface ProjectConfig {
   description: string | null;
   system_prompt: string;
   welcome_message: string | null;
+  user_prompt_template: string | null;
+  system_prompt_template: string | null;
+  response_schema: Record<string, unknown> | null;
   is_enabled: boolean;
   created_at: string;
   updated_at: string;

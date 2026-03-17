@@ -8,7 +8,7 @@ import {
   getFAQs,
   getMedicines,
 } from "./knowledge-base.ts";
-import { AI_RESPONSE_SCHEMA } from "./prompts/ai-response-schema.ts";
+import { getResponseSchema } from "./prompts-manager.ts";
 import {
   getAudioTranslationPrompt,
   getAudioTranslationSystemInstruction,
@@ -358,18 +358,31 @@ export async function processUserMessage(
 
   try {
     // Load knowledge base
-    const [doctors, medicines, faqs] = await Promise.all([
+    const [doctors, medicines, faqs, systemPrompt, userPrompt, responseSchema] = await Promise.all([
       getDoctors(project.id),
       getMedicines(project.id),
       getFAQs(project.id),
+      getSystemPrompt(session, project),
+      buildUserPrompt({
+        userInput: data.userInput,
+        inputType: data.type,
+        project,
+        session,
+        isNewSession,
+        doctorsTable: "", // Will be filled next
+        medicinesTable: "", // Will be filled next
+        faqsText: "", // Will be filled next
+        isTranslatedFromAudio: data.isTranslatedFromAudio || false,
+      }),
+      getResponseSchema(project.id),
     ]);
 
     const doctorsTable = formatDoctorsTable(doctors);
     const medicinesTable = formatMedicinesTable(medicines);
     const faqsText = formatFAQsForPrompt(faqs);
 
-    const systemPrompt = getSystemPrompt(session, project);
-    const userPrompt = buildUserPrompt({
+    // Rebuild user prompt with filled knowledge base tables
+    const finalUserPrompt = await buildUserPrompt({
       userInput: data.userInput,
       inputType: data.type,
       project,
@@ -383,8 +396,8 @@ export async function processUserMessage(
 
     const resultText = await callGemini(
       systemPrompt,
-      userPrompt,
-      AI_RESPONSE_SCHEMA,
+      finalUserPrompt,
+      responseSchema,
     );
     const result = parseAIResponse<AIPromptResponse>(
       resultText,

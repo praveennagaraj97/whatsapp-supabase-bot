@@ -1,4 +1,7 @@
-// User prompt builder — assembles context for each AI call
+// User prompt builder — loads template from file cache (fast) or database (fallback)
+// Prompts are cached to /tmp when project is enabled for optimal performance
+// Assembles context for each AI call with runtime values (time, session state, KB)
+import { getUserPromptTemplate } from "../prompts-manager.ts";
 import type { ProjectConfig, UserSession } from "../types.ts";
 
 interface UserPromptParams {
@@ -55,7 +58,7 @@ function formatSessionState(session: UserSession): string {
   return parts.length > 0 ? parts.join("\n") : "No booking data yet.";
 }
 
-export function buildUserPrompt(params: UserPromptParams): string {
+export async function buildUserPrompt(params: UserPromptParams): Promise<string> {
   const {
     userInput,
     inputType,
@@ -68,42 +71,46 @@ export function buildUserPrompt(params: UserPromptParams): string {
     isTranslatedFromAudio,
   } = params;
 
+  // Load template from database
+  const template = await getUserPromptTemplate(project.id);
+
   const greeting = isNewSession
     ? `Good ${timeOfDay()}! This is a NEW patient. Greet them warmly and ask how you can help.`
     : `Returning patient. Continue the conversation naturally.`;
 
   const currentTime = new Date().toISOString();
+  const sessionState = formatSessionState(session);
+  const conversationHistory = session.conversation_summary
+    ? `## CONVERSATION SUMMARY\n${session.conversation_summary}`
+    : "No conversation history yet.";
+  const lastMessage = session.last_prompt_response
+    ? `## LAST BOT MESSAGE\n${session.last_prompt_response}`
+    : "No previous messages.";
 
-  return `
-## CURRENT CONTEXT
-- ${greeting}
-- Active Project: ${project.name}
-- Bot Name: ${project.bot_name}
-- Current Time: ${currentTime}
-- Input Type: ${inputType}
-${
-    isTranslatedFromAudio
-      ? "- Note: This message was translated from audio (Indian language to English). The user spoke in their native language."
-      : ""
-  }
+  const knowledgeBase =
+    `## AVAILABLE DOCTORS\n${doctorsTable}\n\n## AVAILABLE MEDICINES\n${medicinesTable}\n\n## FAQ KNOWLEDGE BASE\n${faqsText}`;
 
-## SESSION STATE
-${formatSessionState(session)}
+  // Replace template placeholders
+  let prompt = template
+    .replace(/{{botName}}/g, project.bot_name || project.name)
+    .replace(/{{projectName}}/g, project.name)
+    .replace(/{{currentTime}}/g, currentTime)
+    .replace(/{{inputType}}/g, inputType)
+    .replace(/{{userName}}/g, session.user_name || "Patient")
+    .replace(/{{userPhone}}/g, session.user_phone || "Unknown")
+    .replace(/{{conversationContext}}/g, isNewSession ? "new_session" : "existing_session")
+    .replace(/{{sessionState}}/g, sessionState)
+    .replace(/{{conversationHistory}}/g, conversationHistory)
+    .replace(/{{lastMessage}}/g, lastMessage)
+    .replace(/{{knowledgeBase}}/g, knowledgeBase)
+    .replace(/{{userInput}}/g, userInput)
+    .replace(/{{isTranslatedFromAudio}}/g, isTranslatedFromAudio ? "true" : "false")
+    .replace(
+      /{{audioNote}}/g,
+      isTranslatedFromAudio
+        ? "Note: This message was translated from audio (Indian language to English). The user spoke in their native language."
+        : "Message received as text.",
+    );
 
-${session.last_prompt_response ? `## LAST BOT MESSAGE\n${session.last_prompt_response}` : ""}
-
-${session.conversation_summary ? `## CONVERSATION SUMMARY\n${session.conversation_summary}` : ""}
-
-## AVAILABLE DOCTORS
-${doctorsTable}
-
-## AVAILABLE MEDICINES
-${medicinesTable}
-
-## FAQ KNOWLEDGE BASE
-${faqsText}
-
-## USER MESSAGE
-${userInput}
-`.trim();
+  return prompt.trim();
 }

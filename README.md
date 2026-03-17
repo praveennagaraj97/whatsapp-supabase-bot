@@ -1,8 +1,25 @@
-# WhatsApp Assistant (General-purpose)
+# WhatsApp Assistant (Multi-Purpose AI Bot Platform)
 
-A configurable WhatsApp chatbot powered by **Supabase Edge Functions** (Deno) and **Google Gemini AI**. The repository ships a medical/clinic-themed example (doctors, appointments, medicines, FAQs), but it now supports **multiple admin-managed projects**. Each project has its own prompt, welcome message, and source data, and only one project can be enabled at a time for the live bot.
+A **generic, multi-project WhatsApp chatbot platform** powered by **Supabase Edge Functions** (Deno) and **Google Gemini AI**. This is NOT limited to healthcare — it works for any industry or use case.
 
-By default the example handles medical workflows (symptom discussion, doctor booking, medicine orders), but you can repurpose it by creating a new project through the admin API and importing project-specific JSON source data.
+**Supports unlimited projects** managed through an admin panel. Each project has:
+
+- Independent AI prompts (system + user templates)
+- Project-specific source data (resources, services, FAQs)
+- Isolated user sessions and conversation history
+- Only ONE project enabled at a time drives the live bot
+
+**Example use cases:**
+
+- 🏥 Healthcare systems (doctors, appointments, medicines)
+- 🍕 Restaurants (reservations, menu orders, deliveries)
+- 🛒 E-commerce (product catalog, order tracking, support)
+- 🏢 Customer service (support tickets, FAQs, escalation)
+- 🎓 Education (course info, enrollment, schedule)
+- 🚕 Ride-sharing (bookings, prices, driver info)
+- **...or anything else** — it's completely configurable
+
+By default, we ship a **healthcare/medical example**, but you can instantly create a new project through the admin API and import your own data.
 
 ---
 
@@ -291,7 +308,9 @@ Authorization: Bearer <jwt>
 
 JWT expiry is **30 days** from login.
 
-### Login
+### Authentication
+
+#### Login
 
 `POST /functions/v1/admin/login`
 
@@ -302,58 +321,194 @@ JWT expiry is **30 days** from login.
 }
 ```
 
-### Project APIs
+Response:
 
-- `GET /functions/v1/admin/projects` — list projects
-- `POST /functions/v1/admin/projects` — create project
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiJ9...",
+  "tokenType": "Bearer",
+  "expiresAt": "2026-04-16T06:41:01.053Z",
+  "admin": {
+    "id": "0f65c2b6-...",
+    "email": "admin@medibot.in",
+    "fullName": "Default Admin"
+  }
+}
+```
+
+#### Get Admin Profile
+
+`GET /functions/v1/admin/me`
+
+### Project Management APIs
+
+- `GET /functions/v1/admin/projects` — list all projects
+- `POST /functions/v1/admin/projects` — create new project
 - `GET /functions/v1/admin/projects/:projectId` — fetch one project
 - `PATCH /functions/v1/admin/projects/:projectId` — update project settings
-- `POST /functions/v1/admin/projects/:projectId/enable` — enable exactly one project
-- `POST /functions/v1/admin/projects/:projectId/import` — import project source data from JSON
+- `POST /functions/v1/admin/projects/:projectId/enable` — enable exactly one project (only one project can be enabled at a time)
 
-Example project import payload:
+Example create/update project:
+
+```json
+{
+  "name": "Apollo Hospitals",
+  "slug": "apollo-hospitals",
+  "botName": "Apollo Bot",
+  "description": "Healthcare bot for Apollo Hospitals",
+  "systemPrompt": "You are a healthcare assistant for Apollo Hospitals...",
+  "welcomeMessage": "Welcome to Apollo Health Bot!"
+}
+```
+
+### Prompt Management APIs
+
+**All prompts now come from the admin panel — no static hardcoded prompts (except audio translation).**
+
+#### Get Project Prompts
+
+`GET /functions/v1/admin/projects/:projectId/prompts`
+
+Response:
+
+```json
+{
+  "projectId": "...",
+  "prompts": {
+    "systemPromptTemplate": "You are **{{botName}}**, a healthcare assistant...",
+    "userPromptTemplate": "## CURRENT CONTEXT\n- Time: {{currentTime}}\n...",
+    "responseSchema": { "type": "OBJECT", "properties": {...} }
+  }
+}
+```
+
+#### Update Project Prompts
+
+`PATCH /functions/v1/admin/projects/:projectId/prompts`
+
+**Supported template placeholders:**
+
+_System Prompt Template:_
+
+- `{{botName}}` — Project bot name
+- `{{projectName}}` — Project name
+- `{{projectDescription}}` — Project description
+- `{{supportEmail}}` — Support email from constants
+- `{{supportPhone}}` — Support phone from constants
+- `{{conversationContext}}` — Current conversation context
+- `{{projectInstructions}}` — Project-specific instructions
+
+_User Prompt Template:_
+
+- `{{botName}}` — Project bot name
+- `{{projectName}}` — Project name
+- `{{currentTime}}` — Current timestamp (ISO format)
+- `{{inputType}}` — Message type (text, audio, location)
+- `{{userName}}` — Patient name from session
+- `{{userPhone}}` — User phone number
+- `{{conversationContext}}` — Current context (new_session or existing_session)
+- `{{sessionState}}` — Formatted session data (symptoms, doctor, dates, etc.)
+- `{{conversationHistory}}` — Previous conversation summary
+- `{{lastMessage}}` — Last bot message
+- `{{knowledgeBase}}` — Formatted doctors, medicines, FAQs
+- `{{userInput}}` — Current user message
+- `{{isTranslatedFromAudio}}` — Boolean flag
+- `{{audioNote}}` — Audio translation note
+
+_Response Schema:_
+
+- Full JSON Schema object used for Gemini structured output
+- Define extraction fields (symptoms, doctor_name, medicine_ids, etc.)
+- Define next actions (show_doctors, confirm_appointment, order_medicine, etc.)
+
+Example prompt update:
+
+```json
+{
+  "systemPromptTemplate": "You are **{{botName}}**, a friendly healthcare assistant for {{projectName}}.\\n\\n## YOUR ROLE\\n- Help patients discuss symptoms\\n- Book doctor appointments\\n- Help order medicines\\n\\n## SAFETY\\n- For emergencies: call 108\\n- Never diagnose\\n- For prescriptions: require doctor consultation",
+  "userPromptTemplate": "## CONTEXT\\n- Time: {{currentTime}}\\n- Patient: {{userName}}\\n- Project: {{projectName}}\\n\\n## SESSION\\n{{sessionState}}\\n\\n## KNOWLEDGE\\n{{knowledgeBase}}\\n\\n## MESSAGE\\n{{userInput}}",
+  "responseSchema": { "type": "OBJECT", "properties": {...} }
+}
+```
+
+### Data Import APIs
+
+#### Import Project Source Data
+
+`POST /functions/v1/admin/projects/:projectId/import`
+
+Import doctors, clinics, medicines, and FAQs. Use `replaceExisting: false` (default) for non-destructive merge, or `replaceExisting: true` to delete existing data first.
+
+Example import payload (supports both snake_case and camelCase):
 
 ```json
 {
   "replaceExisting": false,
-  "data": {
-    "clinics": [
-      {
-        "id": "central-clinic",
-        "name": "Central Clinic",
-        "city": "Chennai",
-        "is_active": true
-      }
-    ],
-    "doctors": [
-      {
-        "id": "dr-ananya",
-        "name": "Dr. Ananya Sharma",
-        "specialization": "General Medicine",
-        "clinic_id": "central-clinic",
-        "clinic_name": "Central Clinic"
-      }
-    ],
-    "medicines": [
-      {
-        "id": "paracetamol-650",
-        "name": "Paracetamol 650",
-        "category": "Fever",
-        "price": 30,
-        "in_stock": true
-      }
-    ],
-    "faqs": [
-      {
-        "id": "booking-hours",
-        "category": "BOOKING",
-        "question": "When can I book appointments?",
-        "answer": "Appointments can be booked 24/7 through WhatsApp."
-      }
-    ]
-  }
+  "clinics": [
+    {
+      "id": "central-clinic",
+      "name": "Central Clinic",
+      "address": "123 Health Street",
+      "city": "Chennai",
+      "phone": "+91-44-1234-5678",
+      "operatingHours": "9:00 AM - 9:00 PM",
+      "specializations": "General, Cardiology",
+      "rating": 4.8,
+      "isActive": true
+    }
+  ],
+  "doctors": [
+    {
+      "id": "dr-ananya",
+      "name": "Dr. Ananya Sharma",
+      "specialization": "General Medicine",
+      "clinicId": "central-clinic",
+      "clinicName": "Central Clinic",
+      "experienceYears": 15,
+      "qualification": "MD, General Medicine",
+      "availableDays": "Monday, Tuesday, Wednesday",
+      "availableTimeStart": "10:00",
+      "availableTimeEnd": "14:00",
+      "consultationFee": 500,
+      "languages": "Hindi, English",
+      "isActive": true
+    }
+  ],
+  "medicines": [
+    {
+      "id": "paracetamol-650",
+      "name": "Paracetamol 650mg",
+      "genericName": "Paracetamol",
+      "category": "Pain Relief",
+      "dosageForm": "Tablet",
+      "strength": "650mg",
+      "price": 30,
+      "requiresPrescription": false,
+      "inStock": true
+    }
+  ],
+  "faqs": [
+    {
+      "id": "booking-hours",
+      "category": "BOOKING",
+      "question": "When can I book appointments?",
+      "answer": "Appointments can be booked 24/7 through WhatsApp."
+    }
+  ]
 }
 ```
+
+### Postman Collection
+
+Import the included `MediBot_Admin_API.postman_collection.json` into Postman for easy API testing:
+
+1. Download the file from the repository root
+2. Open Postman → Import → Select the file
+3. Set environment variables:
+   - `BASE_URL` = Your Supabase project URL
+   - `ADMIN_TOKEN` = Bearer token from login
+   - `PROJECT_ID` = Project UUID to operate on
+4. Run requests with pre-built examples
 
 ## Docker (Local + Cloud)
 
