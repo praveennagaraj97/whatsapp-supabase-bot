@@ -803,8 +803,8 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
                       </p>
                     </div>
 
-                    <div className="mt-3 overflow-auto rounded-lg border border-(--panel-border)">
-                      <table className="min-w-full border-collapse bg-white text-sm">
+                    <div className="mt-3 overflow-x-auto rounded-lg border border-(--panel-border) max-w-4xl">
+                      <table className=" border-collapse bg-white text-sm max-w-full">
                         <thead className="bg-zinc-100">
                           <tr>
                             {selectedTable.columns.map((column) => (

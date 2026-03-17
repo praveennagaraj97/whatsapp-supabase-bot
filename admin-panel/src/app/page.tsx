@@ -5,15 +5,9 @@ import { ProjectsView } from '@/components/projects/projects-view';
 import { STORAGE_KEYS } from '@/constants/api-routes';
 import { useProjects } from '@/hooks/api/use-projects';
 import { AnimatePresence, motion } from 'motion/react';
-import { useEffect, useMemo, useState } from 'react';
+import { startTransition, useEffect, useMemo, useState } from 'react';
 
 export default function Home() {
-  function getToken(): string {
-    return typeof window !== 'undefined'
-      ? window.localStorage.getItem(STORAGE_KEYS.adminToken) || ''
-      : '';
-  }
-
   function clearToken(): void {
     if (typeof window !== 'undefined') {
       window.localStorage.removeItem(STORAGE_KEYS.adminToken);
@@ -24,7 +18,9 @@ export default function Home() {
   // Set token on client only to avoid hydration mismatch
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      setToken(window.localStorage.getItem(STORAGE_KEYS.adminToken) || '');
+      startTransition(() => {
+        setToken(window.localStorage.getItem(STORAGE_KEYS.adminToken) || '');
+      });
     }
   }, []);
 
