@@ -12,18 +12,6 @@ install: ## Install Node.js dependencies
 seed: install ## Seed all CSV data into Supabase
 	yarn seed
 
-seed-doctors: install ## Seed only doctors table
-	yarn seed:doctors
-
-seed-clinics: install ## Seed only clinics table
-	yarn seed:clinics
-
-seed-medicines: install ## Seed only medicines table
-	yarn seed:medicines
-
-seed-faqs: install ## Seed only faqs table
-	yarn seed:faqs
-
 serve: ## Run webhook edge function locally with Deno
 	yarn serve
 
