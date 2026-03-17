@@ -1,19 +1,21 @@
 // Inactivity message storage
-import { getSupabaseClient } from './supabase-client.ts';
-import type { SimplifiedMessage } from './types.ts';
+import { getSupabaseClient } from "./supabase-client.ts";
+import type { SimplifiedMessage } from "./types.ts";
 
 /**
  * Store a message during inactivity prompt
  */
 export async function setInactivityMessage(
+  projectId: string,
   userId: string,
   message: SimplifiedMessage,
 ): Promise<void> {
   const supabase = getSupabaseClient();
 
   // Upsert - replace any existing inactivity message for this user
-  await supabase.from('inactivity_messages').upsert(
+  await supabase.from("inactivity_messages").upsert(
     {
+      project_id: projectId,
       user_id: userId,
       type: message.type,
       text: message.text || null,
@@ -23,7 +25,7 @@ export async function setInactivityMessage(
       message_id: message.id || null,
       timestamp: message.timestamp,
     },
-    { onConflict: 'user_id' },
+    { onConflict: "project_id,user_id" },
   );
 }
 
@@ -31,23 +33,28 @@ export async function setInactivityMessage(
  * Get and delete the stored inactivity message
  */
 export async function getAndClearInactivityMessage(
+  projectId: string,
   userId: string,
 ): Promise<SimplifiedMessage | null> {
   const supabase = getSupabaseClient();
 
   const { data } = await supabase
-    .from('inactivity_messages')
-    .select('*')
-    .eq('user_id', userId)
+    .from("inactivity_messages")
+    .select("*")
+    .eq("project_id", projectId)
+    .eq("user_id", userId)
     .single();
 
   if (!data) return null;
 
   // Delete it
-  await supabase.from('inactivity_messages').delete().eq('user_id', userId);
+  await supabase.from("inactivity_messages").delete().eq("project_id", projectId).eq(
+    "user_id",
+    userId,
+  );
 
   return {
-    type: data.type as 'text' | 'audio' | 'location',
+    type: data.type as "text" | "audio" | "location",
     from: userId,
     waId: userId,
     id: data.message_id,

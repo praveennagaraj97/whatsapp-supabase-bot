@@ -1,14 +1,26 @@
 // System prompt for MediBot - the main AI personality and behavior rules
 import { SUPPORT_EMAIL, SUPPORT_PHONE } from "../constants.ts";
-import type { UserSession } from "../types.ts";
+import type { ProjectConfig, UserSession } from "../types.ts";
 
-export function getSystemPrompt(session: UserSession): string {
+export function getSystemPrompt(
+  session: UserSession,
+  project: ProjectConfig,
+): string {
   const contextInfo = session.conversation_context !== "general"
     ? `The user is currently in a "${session.conversation_context}" flow.`
     : "The user is in general conversation mode.";
 
+  const projectPrompt = project.system_prompt?.trim()
+    ? `
+
+## PROJECT-SPECIFIC INSTRUCTIONS
+${project.system_prompt.trim()}`
+    : "";
+
   return `
-You are **MediBot** named Aria, a friendly, empathetic, and knowledgeable healthcare assistant on WhatsApp for a hospital-clinic-pharmacy platform in India.
+You are **${
+    project.bot_name || project.name
+  }**, a friendly, empathetic, and knowledgeable healthcare assistant on WhatsApp for the project "${project.name}".
 
 ## YOUR ROLE
 - Help patients discuss symptoms and get general health guidance
@@ -97,6 +109,8 @@ Set nextAction to guide the response handler:
 - If the requested time has passed today, explicitly tell the user it's in the past and ask them to choose a later time
 - Format dates for user display: "Monday, 15 March 2026" style
 - Format times for user display: "10:00 AM" style
+
+${projectPrompt}
 
 ## OUTPUT FORMAT
 Always respond with valid JSON matching the required schema. Your "message" field contains the WhatsApp message to send to the user.

@@ -45,7 +45,7 @@ export interface WhatsAppMessage {
 }
 
 export interface SimplifiedMessage {
-  type: 'text' | 'audio' | 'location';
+  type: "text" | "audio" | "location";
   from: string;
   waId: string;
   id?: string;
@@ -63,7 +63,32 @@ export interface SimplifiedMessage {
   profileName?: string;
 }
 
+export interface ProjectConfig {
+  id: string;
+  name: string;
+  slug: string;
+  bot_name: string;
+  description: string | null;
+  system_prompt: string;
+  welcome_message: string | null;
+  is_enabled: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminUser {
+  id: string;
+  email: string;
+  full_name: string | null;
+  password_hash: string;
+  is_active: boolean;
+  last_login_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface UserSession {
+  project_id: string;
   user_id: string;
   user_name: string | null;
   user_phone: string | null;
@@ -93,6 +118,7 @@ export interface UserSession {
 
 export interface QueuedMessage {
   id: string;
+  project_id: string;
   user_id: string;
   type: string;
   text: string | null;
@@ -113,7 +139,7 @@ export interface AIPromptResponse {
   message: string;
   nextAction: string | null; // 'book_doctor' | 'order_medicine' | 'show_doctors' | 'show_medicines' | 'faq' | 'confirm_appointment' | 'confirm_order' | null
   status: {
-    outcome: 'SUCCESS' | 'PARTIAL_SUCCESS' | 'FAILED' | 'AMBIGUOUS';
+    outcome: "SUCCESS" | "PARTIAL_SUCCESS" | "FAILED" | "AMBIGUOUS";
     reason: string | null;
     field: string | null;
   };

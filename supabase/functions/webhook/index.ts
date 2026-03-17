@@ -30,6 +30,7 @@ import {
   enqueueMessage,
   hasQueuedMessages,
 } from "../_shared/message-queue.ts";
+import { getEnabledProject } from "../_shared/projects.ts";
 import {
   deleteSession,
   getMinutesSinceLastMessage,
@@ -42,6 +43,7 @@ import {
 import { getSupabaseClient } from "../_shared/supabase-client.ts";
 import type {
   AIPromptResponse,
+  ProjectConfig,
   SimplifiedMessage,
   UserSession,
   WhatsAppWebhookPayload,
@@ -91,6 +93,7 @@ function applyExtractedData(
 
 // ─── Send response based on nextAction ───
 async function sendResponse(
+  project: ProjectConfig,
   to: string,
   aiResponse: AIPromptResponse,
   session: UserSession,
@@ -99,7 +102,7 @@ async function sendResponse(
 
   // Show doctors list
   if (nextAction === "show_doctors") {
-    const doctors = await getDoctors();
+    const doctors = await getDoctors(project.id);
     const spec = extractedData.specialization || session.specialization;
     const matched = spec
       ? doctors.filter((d) => d.specialization.toLowerCase().includes(spec.toLowerCase()))
@@ -124,13 +127,13 @@ async function sendResponse(
     } else {
       await sendText(to, message);
     }
-    await saveSentMessage(to, message);
+    await saveSentMessage(project.id, to, message);
     return;
   }
 
   // Show medicines list
   if (nextAction === "show_medicines") {
-    const medicines = await getMedicines();
+    const medicines = await getMedicines(project.id);
     const category = extractedData.medicineNames?.[0];
     const matched = category
       ? medicines.filter(
@@ -161,7 +164,7 @@ async function sendResponse(
     } else {
       await sendText(to, message);
     }
-    await saveSentMessage(to, message);
+    await saveSentMessage(project.id, to, message);
     return;
   }
 
@@ -188,7 +191,7 @@ async function sendResponse(
       { id: "confirm_apt_yes", title: "Confirm" },
       { id: "confirm_apt_no", title: "Cancel" },
     ]);
-    await saveSentMessage(to, confirmMsg);
+    await saveSentMessage(project.id, to, confirmMsg);
     return;
   }
 
@@ -208,16 +211,17 @@ async function sendResponse(
         to,
         `Sorry, *${session.preferred_date} at ${aptTime}* is in the past. Please choose a future date and time.`,
       );
-      await updateSession(to, {
+      await updateSession(project.id, to, {
         preferred_date: null,
         preferred_time: null,
       } as Partial<UserSession>);
-      await saveSentMessage(to, message);
+      await saveSentMessage(project.id, to, message);
       return;
     }
 
     const supabase = getSupabaseClient();
     const { error } = await supabase.from("appointments").insert({
+      project_id: project.id,
       user_id: to,
       doctor_id: session.doctor_id,
       clinic_id: session.clinic_id,
@@ -234,7 +238,7 @@ async function sendResponse(
       );
     } else {
       // Clear booking fields so AI doesn't re-confirm on next message
-      await updateSession(to, {
+      await updateSession(project.id, to, {
         doctor_id: null,
         doctor_name: null,
         clinic_id: null,
@@ -247,13 +251,13 @@ async function sendResponse(
       } as Partial<UserSession>);
       await sendText(to, message);
     }
-    await saveSentMessage(to, message);
+    await saveSentMessage(project.id, to, message);
     return;
   }
 
   // Confirm medicine order
   if (nextAction === "confirm_order" && session.medicine_ids?.length) {
-    const medicines = await getMedicines();
+    const medicines = await getMedicines(project.id);
     const selected = medicines.filter((m) => session.medicine_ids!.includes(m.id));
     const total = selected.reduce((sum, m) => sum + m.price, 0);
 
@@ -271,18 +275,19 @@ async function sendResponse(
       { id: "confirm_order_yes", title: "Place Order" },
       { id: "confirm_order_no", title: "Cancel" },
     ]);
-    await saveSentMessage(to, orderMsg);
+    await saveSentMessage(project.id, to, orderMsg);
     return;
   }
 
   // Order medicine (create order)
   if (nextAction === "order_medicine" && session.medicine_ids?.length) {
-    const medicines = await getMedicines();
+    const medicines = await getMedicines(project.id);
     const selected = medicines.filter((m) => session.medicine_ids!.includes(m.id));
     const total = selected.reduce((sum, m) => sum + m.price, 0);
 
     const supabase = getSupabaseClient();
     const { error } = await supabase.from("medicine_orders").insert({
+      project_id: project.id,
       user_id: to,
       medicine_ids: session.medicine_ids,
       medicine_names: session.medicine_names || selected.map((m) => m.name),
@@ -298,7 +303,7 @@ async function sendResponse(
       );
     } else {
       // Clear order fields so AI doesn't re-confirm on next message
-      await updateSession(to, {
+      await updateSession(project.id, to, {
         medicine_ids: null,
         medicine_names: null,
         conversation_context: "general",
@@ -306,7 +311,7 @@ async function sendResponse(
       } as Partial<UserSession>);
       await sendText(to, message);
     }
-    await saveSentMessage(to, message);
+    await saveSentMessage(project.id, to, message);
     return;
   }
 
@@ -330,17 +335,18 @@ async function sendResponse(
       ];
       await sendInteractiveList(to, message, "Choose", sections);
     }
-    await saveSentMessage(to, message);
+    await saveSentMessage(project.id, to, message);
     return;
   }
 
   // Default: plain text
   await sendText(to, message);
-  await saveSentMessage(to, message);
+  await saveSentMessage(project.id, to, message);
 }
 
 // ─── Process one message turn ───
 async function processOneTurn(
+  project: ProjectConfig,
   message: SimplifiedMessage,
   session: UserSession,
   isNewSession: boolean,
@@ -408,7 +414,7 @@ async function processOneTurn(
   // Handle interactive selections
   if (inputType === "text" && userInputForProcessing.startsWith("doc_")) {
     const docId = userInputForProcessing.replace("doc_", "");
-    const doctors = await getDoctors();
+    const doctors = await getDoctors(project.id);
     const doc = doctors.find((d) => d.id === docId);
     if (doc) {
       userInputForProcessing =
@@ -418,7 +424,7 @@ async function processOneTurn(
 
   if (inputType === "text" && userInputForProcessing.startsWith("med_")) {
     const medId = userInputForProcessing.replace("med_", "");
-    const medicines = await getMedicines();
+    const medicines = await getMedicines(project.id);
     const med = medicines.find((m) => m.id === medId);
     if (med) {
       userInputForProcessing = `I want to order ${med.name} (${med.generic_name || med.category})`;
@@ -444,6 +450,7 @@ async function processOneTurn(
       mimeType: message.mimeType || "",
       isTranslatedFromAudio: isTranslated,
     },
+    project,
     session,
     isNewSession,
   );
@@ -472,6 +479,7 @@ async function processOneTurn(
     aiResponse.message = await rephraseFAQ(
       aiResponse.message,
       userInputForProcessing,
+      project.id,
     );
   }
 
@@ -482,6 +490,7 @@ async function processOneTurn(
 
 // ─── Main message handler ───
 async function handleMessage(
+  project: ProjectConfig,
   message: SimplifiedMessage,
   session: UserSession,
   isNewSession: boolean,
@@ -499,7 +508,7 @@ async function handleMessage(
         await sendTyping(currentMessage.id);
       }
 
-      const turn = await processOneTurn(currentMessage, currentSession, isNew);
+      const turn = await processOneTurn(project, currentMessage, currentSession, isNew);
       currentSession = turn.session;
       lastAiResponse = turn.aiResponse;
 
@@ -509,18 +518,19 @@ async function handleMessage(
       }
 
       // Persist session state after each turn
-      await updateSession(message.from, {
+      await updateSession(project.id, message.from, {
         ...currentSession,
         last_prompt_response: turn.aiResponse.message,
         last_prompt_field: turn.aiResponse.nextAction,
       });
 
       // Check for queued messages
-      const hasQueue = await hasQueuedMessages(message.from);
+      const hasQueue = await hasQueuedMessages(project.id, message.from);
       if (!hasQueue || depth >= MAX_QUEUE_TURNS) break;
 
       // Drain and compose next batch
       const drained = await drainHeadBatch(
+        project.id,
         message.from,
         MAX_QUEUE_BATCH,
         MAX_AUDIO_PER_BATCH,
@@ -538,7 +548,7 @@ async function handleMessage(
       );
 
       // Refresh session
-      const { session: refreshed } = await getOrCreateSession(message.from);
+      const { session: refreshed } = await getOrCreateSession(project.id, message.from);
       // Preserve critical fields
       if (currentSession.doctor_id) {
         refreshed.doctor_id = currentSession.doctor_id;
@@ -556,7 +566,7 @@ async function handleMessage(
 
     // Send final response
     if (lastAiResponse && lastAiResponse.message) {
-      await sendResponse(message.from, lastAiResponse, currentSession);
+      await sendResponse(project, message.from, lastAiResponse, currentSession);
     }
   } catch (error) {
     console.error("handleMessage error:", error);
@@ -566,7 +576,7 @@ async function handleMessage(
     );
   } finally {
     // Clear processing flag
-    await updateSession(message.from, {
+    await updateSession(project.id, message.from, {
       is_processing: false,
       processing_started_at: null,
     } as Partial<UserSession>);
@@ -609,6 +619,7 @@ Deno.serve({ port }, async (req: Request): Promise<Response> => {
       }
 
       const [message, ...extraMessages] = incomingMessages;
+      const project = await getEnabledProject();
 
       // Send typing indicator
       if (message.id) {
@@ -628,19 +639,19 @@ Deno.serve({ port }, async (req: Request): Promise<Response> => {
         return new Response(null, { status: 204 });
       }
 
-      const { session, isNew } = await getOrCreateSession(message.from);
+      const { session, isNew } = await getOrCreateSession(project.id, message.from);
 
       // If webhook contains multiple user messages, enqueue extras now so the
       // processing loop can consume them in order after the first turn.
       if (extraMessages.length > 0) {
         for (const extraMessage of extraMessages) {
-          await enqueueMessage(message.from, extraMessage);
+          await enqueueMessage(project.id, message.from, extraMessage);
         }
       }
 
       // Seed user_name from WhatsApp profile if not yet set
       if (message.profileName && !session.user_name) {
-        await updateSession(message.from, {
+        await updateSession(project.id, message.from, {
           user_name: message.profileName,
         } as Partial<UserSession>);
         session.user_name = message.profileName;
@@ -658,7 +669,7 @@ Deno.serve({ port }, async (req: Request): Promise<Response> => {
 
       // DEV_RESET command
       if (message.text === "DEV_RESET") {
-        await deleteSession(message.from);
+        await deleteSession(project.id, message.from);
         await sendText(
           message.from,
           "Session deleted. Send a new message to start fresh.",
@@ -675,15 +686,15 @@ Deno.serve({ port }, async (req: Request): Promise<Response> => {
       if (message.text === INACTIVITY_BUTTON_START_NEW_ID) {
         const newSession = await startNewSession(session);
         // Check for stored message
-        const stored = await getAndClearInactivityMessage(message.from);
+        const stored = await getAndClearInactivityMessage(project.id, message.from);
         if (stored) {
-          await updateSession(message.from, {
+          await updateSession(project.id, message.from, {
             is_processing: true,
             processing_started_at: new Date().toISOString(),
             last_user_message: getMessageDedupKey(stored),
             last_message_timestamp: stored.timestamp,
           } as Partial<UserSession>);
-          await handleMessage(stored, newSession, true);
+          await handleMessage(project, stored, newSession, true);
         } else {
           await sendText(
             message.from,
@@ -694,15 +705,15 @@ Deno.serve({ port }, async (req: Request): Promise<Response> => {
       }
 
       if (message.text === INACTIVITY_BUTTON_PROCEED_ID) {
-        const stored = await getAndClearInactivityMessage(message.from);
+        const stored = await getAndClearInactivityMessage(project.id, message.from);
         if (stored) {
-          await updateSession(message.from, {
+          await updateSession(project.id, message.from, {
             is_processing: true,
             processing_started_at: new Date().toISOString(),
             last_user_message: getMessageDedupKey(stored),
             last_message_timestamp: stored.timestamp,
           } as Partial<UserSession>);
-          await handleMessage(stored, session, false);
+          await handleMessage(project, stored, session, false);
         }
         return new Response(null, { status: 204 });
       }
@@ -715,6 +726,7 @@ Deno.serve({ port }, async (req: Request): Promise<Response> => {
       // Save received message to chat history
       try {
         await saveReceivedMessage(
+          project.id,
           message.from,
           message.text ||
             message.audioId ||
@@ -729,7 +741,7 @@ Deno.serve({ port }, async (req: Request): Promise<Response> => {
 
       // Paused auto-replies
       if (session.pause_auto_replies) {
-        await updateSession(message.from, {
+        await updateSession(project.id, message.from, {
           last_message_timestamp: message.timestamp,
         } as Partial<UserSession>);
         return new Response(null, { status: 204 });
@@ -744,27 +756,27 @@ Deno.serve({ port }, async (req: Request): Promise<Response> => {
             console.warn(
               `Processing timeout for ${message.from}, resetting flag`,
             );
-            await updateSession(message.from, {
+            await updateSession(project.id, message.from, {
               is_processing: false,
               processing_started_at: null,
             } as Partial<UserSession>);
             // Fall through to process normally
           } else {
             const lastContent = getMessageDedupKey(message);
-            await updateSession(message.from, {
+            await updateSession(project.id, message.from, {
               last_user_message: lastContent,
               last_message_timestamp: message.timestamp,
             } as Partial<UserSession>);
-            await enqueueMessage(message.from, message);
+            await enqueueMessage(project.id, message.from, message);
             return new Response(null, { status: 204 });
           }
         } else {
           const lastContent = getMessageDedupKey(message);
-          await updateSession(message.from, {
+          await updateSession(project.id, message.from, {
             last_user_message: lastContent,
             last_message_timestamp: message.timestamp,
           } as Partial<UserSession>);
-          await enqueueMessage(message.from, message);
+          await enqueueMessage(project.id, message.from, message);
           return new Response(null, { status: 204 });
         }
       }
@@ -780,7 +792,7 @@ Deno.serve({ port }, async (req: Request): Promise<Response> => {
         Math.min(minutesSinceUpdate, minutesSinceLast) >= threshold &&
         sessionHasData(session)
       ) {
-        await setInactivityMessage(message.from, message);
+        await setInactivityMessage(project.id, message.from, message);
         await sendInteractiveButtons(
           message.from,
           "*It's been a while.*\n\nWould you like to continue from where we left off, or start a new session?",
@@ -795,7 +807,7 @@ Deno.serve({ port }, async (req: Request): Promise<Response> => {
             },
           ],
         );
-        await updateSession(message.from, {
+        await updateSession(project.id, message.from, {
           last_message_timestamp: message.timestamp,
         } as Partial<UserSession>);
         return new Response(null, { status: 204 });
@@ -803,7 +815,7 @@ Deno.serve({ port }, async (req: Request): Promise<Response> => {
 
       // New user welcome
       if (!session.is_intro_sent) {
-        await updateSession(message.from, {
+        await updateSession(project.id, message.from, {
           is_intro_sent: true,
         } as Partial<UserSession>);
         session.is_intro_sent = true;
@@ -811,11 +823,13 @@ Deno.serve({ port }, async (req: Request): Promise<Response> => {
         const nameGreeting = session.user_name ? ` ${session.user_name}` : "";
         await sendText(
           message.from,
-          `Welcome${nameGreeting} to *MediBot*! 🏥\n\nI'm your personal healthcare assistant. I can help you:\n\n• Discuss symptoms & get health guidance\n• Book doctor appointments\n• Order medicines\n\n_You can type or send voice messages in English, Hindi, Tamil, Telugu, Malayalam, or Kannada._\n\nHow can I help you today?`,
+          project.welcome_message ||
+            `Welcome${nameGreeting} to *${project.bot_name}*! 🏥\n\nI'm your personal healthcare assistant for *${project.name}*. I can help you:\n\n• Discuss symptoms & get health guidance\n• Book doctor appointments\n• Order medicines\n\n_You can type or send voice messages in English, Hindi, Tamil, Telugu, Malayalam, or Kannada._\n\nHow can I help you today?`,
         );
         await saveSentMessage(
+          project.id,
           message.from,
-          "Welcome to MediBot! I can help with symptoms, doctor appointments, and medicines.",
+          `Welcome to ${project.bot_name}! I can help with symptoms, doctor appointments, and medicines.`,
         );
 
         // Small delay before processing
@@ -826,7 +840,7 @@ Deno.serve({ port }, async (req: Request): Promise<Response> => {
       const lastContent = getMessageDedupKey(message);
       const processingStartedAt = new Date().toISOString();
 
-      await updateSession(message.from, {
+      await updateSession(project.id, message.from, {
         is_processing: true,
         processing_started_at: processingStartedAt,
         last_user_message: lastContent,
@@ -839,7 +853,7 @@ Deno.serve({ port }, async (req: Request): Promise<Response> => {
       session.last_message_timestamp = message.timestamp;
 
       // Process the message
-      await handleMessage(message, session, isNew);
+      await handleMessage(project, message, session, isNew);
 
       return new Response(null, { status: 204 });
     } catch (error) {

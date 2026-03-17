@@ -11,6 +11,7 @@
     "seed:faqs": "node scripts/seed-data.mjs --table faqs",
     "serve": "deno run --allow-net --allow-env --allow-read --env-file=.env supabase/functions/webhook/index.ts",
     "serve:webhook": "deno run --allow-net --allow-env --allow-read --env-file=.env supabase/functions/webhook/index.ts",
+    "serve:admin": "deno run --allow-net --allow-env --allow-read --env-file=.env supabase/functions/admin/index.ts",
     "secrets": "node scripts/push-secrets.mjs"
   },
   "dependencies": {

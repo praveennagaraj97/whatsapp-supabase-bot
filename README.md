@@ -1,8 +1,8 @@
 # WhatsApp Assistant (General-purpose)
 
-A configurable WhatsApp chatbot powered by **Supabase Edge Functions** (Deno) and **Google Gemini AI**. The repository ships a medical/clinic-themed example (doctors, appointments, medicines, FAQs), but the architecture is intentionally general-purpose: change the prompt files and the CSV data to adapt the bot to other domains (support, retail, education, etc.).
+A configurable WhatsApp chatbot powered by **Supabase Edge Functions** (Deno) and **Google Gemini AI**. The repository ships a medical/clinic-themed example (doctors, appointments, medicines, FAQs), but it now supports **multiple admin-managed projects**. Each project has its own prompt, welcome message, and source data, and only one project can be enabled at a time for the live bot.
 
-By default the example handles medical workflows (symptom discussion, doctor booking, medicine orders), but you can repurpose it by editing `supabase/functions/_shared/prompts/*` and `data/*.csv`.
+By default the example handles medical workflows (symptom discussion, doctor booking, medicine orders), but you can repurpose it by creating a new project through the admin API and importing project-specific JSON source data.
 
 ---
 
@@ -25,17 +25,19 @@ By default the example handles medical workflows (symptom discussion, doctor boo
 
 ### How It Works
 
-1. **User sends a WhatsApp message** → Meta delivers it to the webhook edge function.
-2. **Webhook** extracts the message, runs guards (dedup, out-of-order, prompt injection), manages the user session, and queues concurrent messages.
-3. **Gemini AI** receives the user message + session state + knowledge base (doctors/medicines/FAQs) and returns a structured JSON response with extracted data, a reply message, and a next action.
-4. **Response handler** interprets the `nextAction` (show doctors list, confirm appointment, order medicine, etc.) and sends the appropriate WhatsApp interactive message (buttons, lists) or plain text.
-5. **Session state** is persisted in Supabase between turns — booking data (doctor, date, symptoms) accumulates across the conversation.
+1. **Admin API** manages projects, login, prompts, and project-scoped source data.
+2. **User sends a WhatsApp message** → Meta delivers it to the webhook edge function.
+3. **Webhook** resolves the currently enabled project, extracts the message, runs guards (dedup, out-of-order, prompt injection), manages the project-scoped user session, and queues concurrent messages.
+4. **Gemini AI** receives the user message + session state + the enabled project's knowledge base (doctors/medicines/FAQs) and returns a structured JSON response with extracted data, a reply message, and a next action.
+5. **Response handler** interprets the `nextAction` (show doctors list, confirm appointment, order medicine, etc.) and sends the appropriate WhatsApp interactive message (buttons, lists) or plain text.
+6. **Session state** is persisted in Supabase per project, so conversations remain isolated when you switch the enabled project.
 
 ### Edge Functions
 
-| Function  | Purpose                                                                      | JWT                        |
-| --------- | ---------------------------------------------------------------------------- | -------------------------- |
-| `webhook` | Main WhatsApp message handler (GET for Meta verification, POST for messages) | Disabled (public endpoint) |
+| Function  | Purpose                                                                           | JWT                        |
+| --------- | --------------------------------------------------------------------------------- | -------------------------- |
+| `webhook` | Main WhatsApp message handler (GET for Meta verification, POST for messages)      | Disabled (public endpoint) |
+| `admin`   | Admin login, project CRUD, project enable toggle, and project source-data imports | Disabled (custom bearer)   |
 
 ### Shared Modules (`_shared/`)
 
@@ -52,6 +54,8 @@ By default the example handles medical workflows (symptom discussion, doctor boo
 | `chat-history.ts`                     | Persist sent/received messages for context                                 |
 | `inactivity.ts`                       | Store and retrieve inactivity-prompt messages                              |
 | `knowledge-base.ts`                   | Cached loaders for doctors, clinics, medicines, FAQs + formatting          |
+| `projects.ts`                         | Load the single enabled project                                            |
+| `admin-auth.ts`                       | Admin password verification and 30-day JWT issuance                        |
 | `gemini.ts`                           | Gemini API caller (structured JSON, audio input), AI orchestrator          |
 | `prompts/system-prompt.ts`            | MediBot personality, rules, extraction guidelines                          |
 | `prompts/user-prompt.ts`              | Per-turn context assembly (session + KB tables + history)                  |
@@ -63,22 +67,27 @@ By default the example handles medical workflows (symptom discussion, doctor boo
 
 ## Database Schema
 
-10 tables in Supabase Postgres with Row Level Security enabled:
+12 tables in Supabase Postgres with Row Level Security enabled:
 
-| Table                 | Purpose                                                      |
-| --------------------- | ------------------------------------------------------------ |
-| `user_sessions`       | Conversation state per user (booking data, processing flags) |
-| `queued_messages`     | FIFO queue for messages received while processing            |
-| `chat_messages`       | Full chat history (user + assistant messages)                |
-| `inactivity_messages` | Temporarily stored messages during inactivity prompts        |
-| `doctors`             | Doctor directory (seeded from CSV)                           |
-| `clinics`             | Clinic directory (seeded from CSV)                           |
-| `medicines`           | Medicine catalog (seeded from CSV)                           |
-| `faqs`                | Frequently asked questions (seeded from CSV)                 |
-| `appointments`        | Booked appointments                                          |
-| `medicine_orders`     | Medicine order records                                       |
+| Table                 | Purpose                                                           |
+| --------------------- | ----------------------------------------------------------------- |
+| `user_sessions`       | Conversation state per user (booking data, processing flags)      |
+| `queued_messages`     | FIFO queue for messages received while processing                 |
+| `chat_messages`       | Full chat history (user + assistant messages)                     |
+| `inactivity_messages` | Temporarily stored messages during inactivity prompts             |
+| `projects`            | Project registry, prompt settings, welcome message, enabled state |
+| `admin_users`         | Email/password admin accounts for the admin API                   |
+| `doctors`             | Doctor directory (seeded from CSV)                                |
+| `clinics`             | Clinic directory (seeded from CSV)                                |
+| `medicines`           | Medicine catalog (seeded from CSV)                                |
+| `faqs`                | Frequently asked questions (seeded from CSV)                      |
+| `appointments`        | Booked appointments                                               |
+| `medicine_orders`     | Medicine order records                                            |
 
-Migration file: `supabase/migrations/20260309000000_initial_schema.sql`
+Migration files:
+
+- `supabase/migrations/20260309000000_initial_schema.sql`
+- `supabase/migrations/20260317000000_admin_projects.sql`
 
 ---
 
@@ -149,6 +158,8 @@ Incoming Message
 - **Interactive WhatsApp UI** — buttons (max 3), lists (max 10), formatted text with bold/italic
 - **Session persistence** — booking state carried across turns (symptoms → doctor → date → confirm)
 - **FAQ integration** — AI answers from FAQ knowledge base, rephrased naturally
+- **Project-aware runtime** — one enabled project at a time, each with independent prompt + source data
+- **Admin bearer auth** — email/password login, custom JWT, 30-day expiry, bearer token for protected admin APIs
 
 ---
 
@@ -183,6 +194,7 @@ cp env.example .env
 | ------------------------------- | -------------------------------------------------- |
 | `SUPABASE_URL`                  | Supabase Dashboard → Settings → API                |
 | `SUPABASE_SERVICE_ROLE_KEY`     | Supabase Dashboard → Settings → API (service_role) |
+| `ADMIN_JWT_SECRET`              | Any long random string for signing admin JWTs      |
 | `SUPABASE_ACCESS_TOKEN`         | https://supabase.com/dashboard/account/tokens      |
 | `META_WHATSAPP_TOKEN`           | Meta Developer Console → WhatsApp → API Setup      |
 | `META_WHATSAPP_PHONE_NUMBER_ID` | Meta Developer Console → WhatsApp → API Setup      |
@@ -217,6 +229,7 @@ make seed-faqs
 make deploy
 # Or individually:
 make deploy-webhook
+make deploy-admin
 ```
 
 ### 6. Push Secrets
@@ -251,6 +264,95 @@ Test webhook verification:
 ```bash
 curl "http://localhost:8000?hub.mode=subscribe&hub.challenge=test123&hub.verify_token=whatsapp-demo"
 # Should return: test123
+```
+
+Run the admin API locally on `http://localhost:8001`:
+
+```bash
+make serve-admin
+```
+
+Default seeded admin credentials:
+
+```text
+Email: admin@medibot.in
+Password: Admin@123456
+```
+
+Rotate the default password immediately in the database for any non-demo environment.
+
+## Admin API
+
+All protected admin endpoints require:
+
+```http
+Authorization: Bearer <jwt>
+```
+
+JWT expiry is **30 days** from login.
+
+### Login
+
+`POST /functions/v1/admin/login`
+
+```json
+{
+  "email": "admin@medibot.in",
+  "password": "Admin@123456"
+}
+```
+
+### Project APIs
+
+- `GET /functions/v1/admin/projects` — list projects
+- `POST /functions/v1/admin/projects` — create project
+- `GET /functions/v1/admin/projects/:projectId` — fetch one project
+- `PATCH /functions/v1/admin/projects/:projectId` — update project settings
+- `POST /functions/v1/admin/projects/:projectId/enable` — enable exactly one project
+- `POST /functions/v1/admin/projects/:projectId/import` — import project source data from JSON
+
+Example project import payload:
+
+```json
+{
+  "replaceExisting": false,
+  "data": {
+    "clinics": [
+      {
+        "id": "central-clinic",
+        "name": "Central Clinic",
+        "city": "Chennai",
+        "is_active": true
+      }
+    ],
+    "doctors": [
+      {
+        "id": "dr-ananya",
+        "name": "Dr. Ananya Sharma",
+        "specialization": "General Medicine",
+        "clinic_id": "central-clinic",
+        "clinic_name": "Central Clinic"
+      }
+    ],
+    "medicines": [
+      {
+        "id": "paracetamol-650",
+        "name": "Paracetamol 650",
+        "category": "Fever",
+        "price": 30,
+        "in_stock": true
+      }
+    ],
+    "faqs": [
+      {
+        "id": "booking-hours",
+        "category": "BOOKING",
+        "question": "When can I book appointments?",
+        "answer": "Appointments can be booked 24/7 through WhatsApp."
+      }
+    ]
+  }
+}
 ```
 
 ## Docker (Local + Cloud)
@@ -296,9 +398,11 @@ Deploy on AWS App Runner (container):
 | `make seed-medicines` | Seed only medicines table                           |
 | `make seed-faqs`      | Seed only faqs table                                |
 | `make serve`          | Run webhook locally with Deno                       |
+| `make serve-admin`    | Run admin API locally with Deno                     |
 | `make secrets`        | Push secrets from `.env` to Supabase edge functions |
 | `make deploy`         | Deploy all edge functions                           |
 | `make deploy-webhook` | Deploy webhook only                                 |
+| `make deploy-admin`   | Deploy admin API only                               |
 
 ---
 
@@ -324,10 +428,15 @@ Deploy on AWS App Runner (container):
 │   ├── config.toml               # Local Supabase config
 │   ├── migrations/
 │   │   └── 20260309000000_initial_schema.sql
+│   │   └── 20260317000000_admin_projects.sql
 │   └── functions/
+│       ├── admin/
+│       │   └── index.ts          # Admin login + project APIs
 │       ├── webhook/
 │       │   └── index.ts          # Main webhook handler
 │       └── _shared/
+│           ├── admin-auth.ts
+│           ├── projects.ts
 │           ├── supabase-client.ts
 │           ├── types.ts
 │           ├── constants.ts

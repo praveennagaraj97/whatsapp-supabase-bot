@@ -18,6 +18,31 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+function slugify(value) {
+  return String(value || '')
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80);
+}
+
+async function getDefaultProject() {
+  const { data, error } = await supabase
+    .from('projects')
+    .select('id, slug')
+    .eq('slug', 'medibot-default')
+    .single();
+
+  if (error || !data) {
+    throw new Error(
+      'Default project not found. Apply the admin_projects migration before seeding.',
+    );
+  }
+
+  return data;
+}
+
 function readCSV(filename) {
   const content = readFileSync(resolve(DATA_DIR, filename), 'utf-8');
   return parse(content, {
@@ -45,7 +70,7 @@ function readCSV(filename) {
   });
 }
 
-async function seedTable(tableName, filename, options = {}) {
+async function seedTable(tableName, filename, project, options = {}) {
   console.log(`\nSeeding ${tableName}...`);
   const records = readCSV(filename);
 
@@ -56,14 +81,21 @@ async function seedTable(tableName, filename, options = {}) {
 
   // Transform records if needed
   const transformed = options.transform
-    ? records.map(options.transform)
-    : records;
+    ? records.map((record) => options.transform(record, project))
+    : records.map((record) => ({
+        ...record,
+        project_id: project.id,
+        source_id:
+          record.source_id ||
+          record.id ||
+          slugify(record.question || record.name || crypto.randomUUID()),
+      }));
 
   // Clear existing data
   const { error: deleteError } = await supabase
     .from(tableName)
     .delete()
-    .gte('created_at', '1970-01-01');
+    .eq('project_id', project.id);
   if (deleteError) {
     console.error(`  Error clearing ${tableName}:`, deleteError.message);
   }
@@ -94,6 +126,7 @@ async function seedTable(tableName, filename, options = {}) {
 }
 
 async function main() {
+  const project = await getDefaultProject();
   const targetTable =
     process.argv.find((a) => a.startsWith('--table='))?.split('=')[1] ||
     (process.argv.includes('--table')
@@ -121,7 +154,7 @@ async function main() {
 
   for (const table of tables) {
     if (targetTable && table.name !== targetTable) continue;
-    await seedTable(table.name, table.file, table.options || {});
+    await seedTable(table.name, table.file, project, table.options || {});
   }
 
   console.log('\nSeeding complete!');

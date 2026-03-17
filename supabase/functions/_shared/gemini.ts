@@ -16,7 +16,7 @@ import {
 import { getFAQRephrasePrompt } from "./prompts/faq-prompt.ts";
 import { getSystemPrompt } from "./prompts/system-prompt.ts";
 import { buildUserPrompt } from "./prompts/user-prompt.ts";
-import type { AIPromptResponse, UserSession } from "./types.ts";
+import type { AIPromptResponse, ProjectConfig, UserSession } from "./types.ts";
 import { fetchAudioAsBase64 } from "./whatsapp.ts";
 
 type GeminiKeyLabel = "Primary Key" | "Fallback One" | "Fallback Two";
@@ -330,6 +330,7 @@ export async function processUserMessage(
     mimeType: string;
     isTranslatedFromAudio?: boolean;
   },
+  project: ProjectConfig,
   session: UserSession,
   isNewSession: boolean,
 ): Promise<AIPromptResponse> {
@@ -358,19 +359,20 @@ export async function processUserMessage(
   try {
     // Load knowledge base
     const [doctors, medicines, faqs] = await Promise.all([
-      getDoctors(),
-      getMedicines(),
-      getFAQs(),
+      getDoctors(project.id),
+      getMedicines(project.id),
+      getFAQs(project.id),
     ]);
 
     const doctorsTable = formatDoctorsTable(doctors);
     const medicinesTable = formatMedicinesTable(medicines);
     const faqsText = formatFAQsForPrompt(faqs);
 
-    const systemPrompt = getSystemPrompt(session);
+    const systemPrompt = getSystemPrompt(session, project);
     const userPrompt = buildUserPrompt({
       userInput: data.userInput,
       inputType: data.type,
+      project,
       session,
       isNewSession,
       doctorsTable,
@@ -427,9 +429,10 @@ export async function translateAudioToEnglish(
 export async function rephraseFAQ(
   currentAIMessage: string,
   userQuestion: string,
+  projectId: string,
 ): Promise<string> {
   try {
-    const faqs = await getFAQs();
+    const faqs = await getFAQs(projectId);
     const faqsText = formatFAQsForPrompt(faqs);
     const prompt = getFAQRephrasePrompt(
       currentAIMessage,

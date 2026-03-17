@@ -1,19 +1,21 @@
 // Chat history persistence
-import { getSupabaseClient } from './supabase-client.ts';
+import { getSupabaseClient } from "./supabase-client.ts";
 
 /**
  * Save a received message to chat history
  */
 export async function saveReceivedMessage(
+  projectId: string,
   userId: string,
   message: string,
-  contentType = 'text',
+  contentType = "text",
   timestamp?: string,
 ): Promise<void> {
   const supabase = getSupabaseClient();
-  await supabase.from('chat_messages').insert({
+  await supabase.from("chat_messages").insert({
+    project_id: projectId,
     user_id: userId,
-    role: 'user',
+    role: "user",
     content_type: contentType,
     message,
     whatsapp_timestamp: timestamp || String(Math.floor(Date.now() / 1000)),
@@ -24,14 +26,16 @@ export async function saveReceivedMessage(
  * Save a sent (assistant) message to chat history
  */
 export async function saveSentMessage(
+  projectId: string,
   userId: string,
   message: string,
-  contentType = 'text',
+  contentType = "text",
 ): Promise<void> {
   const supabase = getSupabaseClient();
-  await supabase.from('chat_messages').insert({
+  await supabase.from("chat_messages").insert({
+    project_id: projectId,
     user_id: userId,
-    role: 'assistant',
+    role: "assistant",
     content_type: contentType,
     message,
     whatsapp_timestamp: String(Math.floor(Date.now() / 1000)),
@@ -42,15 +46,17 @@ export async function saveSentMessage(
  * Get recent chat history for context
  */
 export async function getRecentHistory(
+  projectId: string,
   userId: string,
   limit = 10,
 ): Promise<Array<{ role: string; message: string }>> {
   const supabase = getSupabaseClient();
   const { data } = await supabase
-    .from('chat_messages')
-    .select('role, message')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false })
+    .from("chat_messages")
+    .select("role, message")
+    .eq("project_id", projectId)
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
     .limit(limit);
 
   return (data || []).reverse();
