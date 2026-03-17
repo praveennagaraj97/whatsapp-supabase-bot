@@ -53,13 +53,23 @@ export function ProjectsView({
   }
 
   async function handleToggleProject(id: string, enabled: boolean) {
+    // `enabled` is the new desired enabled state. If attempting to disable,
+    // ensure at least one project remains enabled.
+    if (!enabled) {
+      const enabledCount = projects.filter((p) => p.is_enabled).length;
+      if (enabledCount <= 1) {
+        toast.error('At least one project must be enabled');
+        return;
+      }
+    }
+
     try {
       await projectService.enableProject(id);
       await mutate();
       toast.success(
         enabled
-          ? 'Project disabled successfully'
-          : 'Project enabled successfully',
+          ? 'Project enabled successfully'
+          : 'Project disabled successfully',
       );
     } catch (error) {
       const errorMsg = getErrorMessage(error);

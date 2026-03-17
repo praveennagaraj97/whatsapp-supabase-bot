@@ -41,6 +41,7 @@ export function CreateProjectModal({
   const [botName, setBotName] = useState('');
   const [description, setDescription] = useState('');
   const [systemPrompt, setSystemPrompt] = useState('');
+  const [welcomeMessage, setWelcomeMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -60,6 +61,7 @@ export function CreateProjectModal({
     setBotName('');
     setDescription('');
     setSystemPrompt('');
+    setWelcomeMessage('');
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -76,6 +78,7 @@ export function CreateProjectModal({
       bot_name: botName.trim() || undefined,
       description: description.trim() || undefined,
       system_prompt: systemPrompt.trim() || undefined,
+      welcome_message: welcomeMessage.trim() || undefined,
     };
 
     setIsSubmitting(true);
@@ -184,6 +187,18 @@ export function CreateProjectModal({
                   onChange={(event) => setSystemPrompt(event.target.value)}
                   placeholder="Initial AI instruction..."
                   className="h-24 w-full rounded-xl border border-(--panel-border) bg-white px-3 py-2.5 text-sm outline-none focus:border-(--accent)"
+                />
+              </label>
+
+              <label className="block sm:col-span-2">
+                <span className="text-(--muted) mb-1.5 block text-xs font-medium uppercase tracking-[0.16em]">
+                  Welcome Message
+                </span>
+                <textarea
+                  value={welcomeMessage}
+                  onChange={(event) => setWelcomeMessage(event.target.value)}
+                  placeholder="Optional welcome message shown to users when they first message the bot"
+                  className="h-20 w-full rounded-xl border border-(--panel-border) bg-white px-3 py-2.5 text-sm outline-none focus:border-(--accent)"
                 />
               </label>
             </div>

@@ -100,8 +100,12 @@ export function ProjectCard({ project, onToggle, onDelete }: ProjectCardProps) {
               initial={false}
               animate={{ x: project.is_enabled ? 28 : 4 }}
               transition={{ type: 'spring', stiffness: 500, damping: 50 }}
-              className="h-6 w-6 rounded-full bg-white"
-            />
+              className="h-6 w-6 rounded-full bg-white flex items-center justify-center"
+            >
+              {isTogglingEnabled ? (
+                <span className="h-3 w-3 rounded-full border-2 border-white border-t-transparent animate-spin" />
+              ) : null}
+            </motion.div>
           </button>
         </div>
       </div>

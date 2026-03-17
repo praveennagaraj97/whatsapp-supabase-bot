@@ -21,6 +21,7 @@ export type Project = {
   bot_name: string;
   description: string | null;
   system_prompt: string;
+  welcome_message?: string | null;
   is_enabled: boolean;
   created_at?: string;
 };
@@ -35,6 +36,7 @@ export type CreateProjectPayload = {
   bot_name?: string;
   description?: string;
   system_prompt?: string;
+  welcome_message?: string;
 };
 
 export type CreateProjectResponse = {
