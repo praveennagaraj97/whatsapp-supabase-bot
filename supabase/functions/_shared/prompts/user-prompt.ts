@@ -1,6 +1,4 @@
-// User prompt builder — loads template from file cache (fast) or database (fallback)
-// Prompts are cached to /tmp when project is enabled for optimal performance
-// Assembles context for each AI call with runtime values (time, session state, KB)
+// User prompt builder — loads template from database and assembles context for each AI call
 import { getUserPromptTemplate } from "../prompts-manager.ts";
 import type { ProjectConfig, UserSession } from "../types.ts";
 

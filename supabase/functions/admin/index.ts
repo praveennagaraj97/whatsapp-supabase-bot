@@ -1,7 +1,6 @@
 import { issueAdminToken, requireAdminAuth, verifyAdminPassword } from "../_shared/admin-auth.ts";
 import { clearKnowledgeBaseCache } from "../_shared/knowledge-base.ts";
 import { clearProjectCache } from "../_shared/projects.ts";
-import { cacheProjectPrompts } from "../_shared/prompt-cache.ts";
 import { clearPromptsCache, getResponseSchema } from "../_shared/prompts-manager.ts";
 import { getSupabaseClient } from "../_shared/supabase-client.ts";
 import type { AdminUser, ProjectConfig } from "../_shared/types.ts";
@@ -148,11 +147,6 @@ async function setEnabledProject(projectId: string): Promise<void> {
   }
 
   clearProjectCache();
-
-  // Cache prompts to filesystem for fast reads on every message
-  const project = await getProjectById(projectId);
-  await cacheProjectPrompts(project);
-  console.log(`✓ Project enabled: ${project.name} (cached prompts)`);
 }
 
 async function listProjects(): Promise<Response> {

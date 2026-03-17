@@ -1,8 +1,4 @@
-// Prompt management - loads prompts from file cache first, then database
-import {
-    initializeCacheOnStartup,
-    loadPromptFromCache,
-} from "./prompt-cache.ts";
+// Prompt management - loads prompts from database or provides defaults
 import { getSupabaseClient } from "./supabase-client.ts";
 import type { ProjectConfig } from "./types.ts";
 
@@ -12,33 +8,12 @@ const promptCache = new Map<string, ProjectConfig>();
 export async function getProjectPrompts(
   projectId: string,
 ): Promise<ProjectConfig> {
-  // Check memory cache first (fastest)
+  // Check cache first
   if (promptCache.has(projectId)) {
     return promptCache.get(projectId)!;
   }
 
-  // Initialize file cache on first request
-  await initializeCacheOnStartup();
-
-  // Check file cache (faster than DB)
-  const cachedPrompt = await loadPromptFromCache(projectId);
-  if (cachedPrompt) {
-    // Reconstruct minimal ProjectConfig from cache
-    const config: ProjectConfig = {
-      id: projectId,
-      name: "",
-      slug: "",
-      bot_name: "",
-      system_prompt_template: cachedPrompt.systemPromptTemplate,
-      user_prompt_template: cachedPrompt.userPromptTemplate,
-      response_schema: cachedPrompt.responseSchema,
-      system_prompt: cachedPrompt.systemPrompt,
-    } as ProjectConfig;
-    promptCache.set(projectId, config);
-    return config;
-  }
-
-  // Fallback to database if cache miss
+  // Fetch from database
   const { data, error } = await getSupabaseClient()
     .from("projects")
     .select("*")

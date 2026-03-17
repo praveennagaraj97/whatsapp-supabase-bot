@@ -31,7 +31,6 @@ import {
   hasQueuedMessages,
 } from "../_shared/message-queue.ts";
 import { getEnabledProject } from "../_shared/projects.ts";
-import { initializeCacheOnStartup } from "../_shared/prompt-cache.ts";
 import {
   deleteSession,
   getMinutesSinceLastMessage,
@@ -612,9 +611,6 @@ Deno.serve({ port }, async (req: Request): Promise<Response> => {
   // ─── POST: Incoming messages ───
   if (req.method === "POST") {
     try {
-      // Initialize prompt cache on first request (loads from filesystem)
-      await initializeCacheOnStartup();
-
       const body: WhatsAppWebhookPayload = await req.json();
       const incomingMessages = extractValidWhatsappMessages(body);
 

@@ -1,6 +1,5 @@
-// System prompt - loads from file cache (fast) or database (fallback)
+// System prompt for MediBot - loaded from database
 // Static hardcoded prompts are replaced by admin-managed templates
-// Prompts are cached to /tmp when project is enabled for optimal performance
 import { SUPPORT_EMAIL, SUPPORT_PHONE } from "../constants.ts";
 import { getSystemPromptTemplate } from "../prompts-manager.ts";
 import type { ProjectConfig, UserSession } from "../types.ts";
