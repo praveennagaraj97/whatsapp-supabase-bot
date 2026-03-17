@@ -24,10 +24,6 @@ type ProjectDetailProps = {
 const ECOMMERCE_TEMPLATE = {
   systemPrompt:
     'You are a commerce assistant. Help users discover products, compare options, track orders, and answer policy questions clearly and concisely.',
-  systemPromptTemplate:
-    'You are {{botName}} for {{projectName}}. Use provided datasets and conversation context to answer accurately. Ask follow-up questions when required details are missing.',
-  userPromptTemplate:
-    'User message: {{userMessage}}\nConversation summary: {{conversationSummary}}\nAvailable data snapshots: {{dataSummary}}\nReturn JSON matching the configured response schema.',
   responseSchema: {
     extractedData: {
       intent: 'string',
@@ -70,7 +66,6 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
   const { data, isLoading, error } = useProjectDetail(projectId);
   const [systemPrompt, setSystemPrompt] = useState('');
   const [dataSourceUrl, setDataSourceUrl] = useState('');
-  const [isSaving, setIsSaving] = useState(false);
   const [isLoadingSheets, setIsLoadingSheets] = useState(false);
   const [loadedTables, setLoadedTables] = useState<SheetTable[]>([]);
   const [selectedTableKey, setSelectedTableKey] = useState('');
@@ -84,8 +79,6 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
   const [replaceExisting, setReplaceExisting] = useState(false);
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   const [isSubmittingData, setIsSubmittingData] = useState(false);
-  const [systemPromptTemplate, setSystemPromptTemplate] = useState('');
-  const [userPromptTemplate, setUserPromptTemplate] = useState('');
   const [responseSchemaText, setResponseSchemaText] = useState('{}');
   const [isSavingAiConfig, setIsSavingAiConfig] = useState(false);
 
@@ -107,8 +100,9 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
           await projectDetailService.getProjectPrompts(projectId);
         if (!isMounted) return;
 
-        setSystemPromptTemplate(response.prompts.systemPromptTemplate || '');
-        setUserPromptTemplate(response.prompts.userPromptTemplate || '');
+        setSystemPrompt(
+          response.prompts.systemPrompt || project?.system_prompt || '',
+        );
         setResponseSchemaText(
           JSON.stringify(response.prompts.responseSchema || {}, null, 2),
         );
@@ -125,28 +119,7 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
     return () => {
       isMounted = false;
     };
-  }, [projectId]);
-
-  async function handleSavePrompt() {
-    if (!project || !systemPrompt.trim()) {
-      toast.info('Please enter a system prompt');
-      return;
-    }
-
-    setIsSaving(true);
-
-    try {
-      await projectDetailService.updateProject(projectId, {
-        system_prompt: systemPrompt,
-      });
-      toast.success('Prompt saved successfully');
-    } catch (err) {
-      const errorMsg = getErrorMessage(err);
-      toast.error(errorMsg);
-    } finally {
-      setIsSaving(false);
-    }
-  }
+  }, [project?.system_prompt, projectId]);
 
   async function handleLoadSheetData() {
     if (!dataSourceUrl.trim()) {
@@ -271,6 +244,11 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
   }
 
   async function handleSaveAiConfig() {
+    if (!systemPrompt.trim()) {
+      toast.error('System prompt cannot be empty');
+      return;
+    }
+
     let parsedSchema: Record<string, unknown>;
     try {
       parsedSchema = JSON.parse(responseSchemaText);
@@ -282,11 +260,10 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
     setIsSavingAiConfig(true);
     try {
       await projectDetailService.updateProjectPrompts(projectId, {
-        systemPromptTemplate,
-        userPromptTemplate,
+        systemPrompt,
         responseSchema: parsedSchema,
       });
-      toast.success('AI prompt templates and schema updated');
+      toast.success('AI configuration updated');
     } catch (error) {
       toast.error(getErrorMessage(error));
     } finally {
@@ -296,8 +273,6 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
 
   function handleApplyEcommerceTemplate() {
     setSystemPrompt(ECOMMERCE_TEMPLATE.systemPrompt);
-    setSystemPromptTemplate(ECOMMERCE_TEMPLATE.systemPromptTemplate);
-    setUserPromptTemplate(ECOMMERCE_TEMPLATE.userPromptTemplate);
     setResponseSchemaText(
       JSON.stringify(ECOMMERCE_TEMPLATE.responseSchema, null, 2),
     );
@@ -372,48 +347,6 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
 
         {/* Main Content */}
         <div className="grid gap-6">
-          {/* System Prompt Card */}
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.1 }}
-            className="rounded-2xl border border-(--panel-border) bg-(--panel) p-6"
-          >
-            <h2 className="mb-4 text-lg font-semibold text-foreground">
-              System Prompt
-            </h2>
-
-            <label className="block">
-              <span className="text-(--muted) mb-2 block text-sm font-medium">
-                Configure the AI prompt for this project
-              </span>
-              <textarea
-                value={systemPrompt}
-                onChange={(e) => setSystemPrompt(e.target.value)}
-                placeholder="Define assistant behavior for your domain (ecommerce, support, education, etc.)"
-                className="h-32 w-full rounded-xl border border-(--panel-border) bg-white/85 px-4 py-3 text-sm text-foreground outline-none transition focus:border-(--accent)"
-              />
-            </label>
-
-            <div className="mt-4 flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={handleSavePrompt}
-                disabled={isSaving}
-                className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:opacity-50"
-              >
-                {isSaving ? 'Saving...' : 'Save Prompt'}
-              </button>
-              <button
-                type="button"
-                onClick={handleApplyEcommerceTemplate}
-                className="rounded-xl border border-(--panel-border) bg-white px-4 py-2 text-sm font-medium text-foreground transition hover:bg-zinc-100"
-              >
-                Seed Ecommerce Test Template
-              </button>
-            </div>
-          </motion.div>
-
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -421,34 +354,18 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
             className="rounded-2xl border border-(--panel-border) bg-(--panel) p-6"
           >
             <h2 className="mb-4 text-lg font-semibold text-foreground">
-              AI Templates and Response Schema
+              AI Configuration
             </h2>
 
             <div className="grid gap-4">
               <label className="block">
                 <span className="text-(--muted) mb-2 block text-sm font-medium">
-                  System Prompt Template
+                  System Prompt
                 </span>
                 <textarea
-                  value={systemPromptTemplate}
-                  onChange={(event) =>
-                    setSystemPromptTemplate(event.target.value)
-                  }
-                  placeholder="Template with placeholders, e.g. {{projectName}}"
-                  className="h-28 w-full rounded-xl border border-(--panel-border) bg-white/85 px-4 py-3 text-sm text-foreground outline-none transition focus:border-(--accent)"
-                />
-              </label>
-
-              <label className="block">
-                <span className="text-(--muted) mb-2 block text-sm font-medium">
-                  User Prompt Template
-                </span>
-                <textarea
-                  value={userPromptTemplate}
-                  onChange={(event) =>
-                    setUserPromptTemplate(event.target.value)
-                  }
-                  placeholder="Template combining user message and contextual data"
+                  value={systemPrompt}
+                  onChange={(event) => setSystemPrompt(event.target.value)}
+                  placeholder="Define assistant behavior for your domain (ecommerce, support, education, etc.)"
                   className="h-28 w-full rounded-xl border border-(--panel-border) bg-white/85 px-4 py-3 text-sm text-foreground outline-none transition focus:border-(--accent)"
                 />
               </label>
@@ -470,14 +387,23 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
               </label>
             </div>
 
-            <button
-              type="button"
-              onClick={handleSaveAiConfig}
-              disabled={isSavingAiConfig}
-              className="mt-4 rounded-xl bg-foreground px-4 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-60"
-            >
-              {isSavingAiConfig ? 'Saving AI Config...' : 'Save AI Config'}
-            </button>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={handleSaveAiConfig}
+                disabled={isSavingAiConfig}
+                className="rounded-xl bg-foreground px-4 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-60"
+              >
+                {isSavingAiConfig ? 'Saving AI Config...' : 'Save AI Config'}
+              </button>
+              <button
+                type="button"
+                onClick={handleApplyEcommerceTemplate}
+                className="rounded-xl border border-(--panel-border) bg-white px-4 py-2 text-sm font-medium text-foreground transition hover:bg-zinc-100"
+              >
+                Seed Ecommerce Test Template
+              </button>
+            </div>
           </motion.div>
 
           {/* Data Source Card */}

@@ -1,21 +1,12 @@
 import { GoogleGenAI } from "npm:@google/genai@latest";
 // Gemini AI service
-import {
-  formatDoctorsTable,
-  formatFAQsForPrompt,
-  formatMedicinesTable,
-  getDoctors,
-  getFAQs,
-  getMedicines,
-} from "./knowledge-base.ts";
+import { getProjectDataTables } from "./knowledge-base.ts";
 import { getResponseSchema } from "./prompts-manager.ts";
 import {
   getAudioTranslationPrompt,
   getAudioTranslationSystemInstruction,
 } from "./prompts/audio-translation-prompt.ts";
-import { getFAQRephrasePrompt } from "./prompts/faq-prompt.ts";
 import { getSystemPrompt } from "./prompts/system-prompt.ts";
-import { buildUserPrompt } from "./prompts/user-prompt.ts";
 import type { AIPromptResponse, ProjectConfig, UserSession } from "./types.ts";
 import { fetchAudioAsBase64 } from "./whatsapp.ts";
 
@@ -335,68 +326,38 @@ export async function processUserMessage(
   isNewSession: boolean,
 ): Promise<AIPromptResponse> {
   const defaultResponse: AIPromptResponse = {
-    extractedData: {
-      symptoms: null,
-      specialization: null,
-      doctorId: null,
-      doctorName: null,
-      clinicId: null,
-      clinicName: null,
-      preferredDate: null,
-      preferredTime: null,
-      medicineIds: null,
-      medicineNames: null,
-      userName: null,
-    },
+    extractedData: {},
     message: "Sorry, I ran into a technical problem. Please try again.",
     nextAction: null,
     status: { outcome: "FAILED", reason: "INTERNAL_ERROR", field: null },
     options: null,
     conversationSummary: null,
-    callFAQs: false,
   };
 
   try {
-    // Load knowledge base
-    const [doctors, medicines, faqs, systemPrompt, userPrompt, responseSchema] = await Promise.all([
-      getDoctors(project.id),
-      getMedicines(project.id),
-      getFAQs(project.id),
-      getSystemPrompt(session, project),
-      buildUserPrompt({
-        userInput: data.userInput,
-        inputType: data.type,
-        project,
-        session,
-        isNewSession,
-        doctorsTable: "", // Will be filled next
-        medicinesTable: "", // Will be filled next
-        faqsText: "", // Will be filled next
-        isTranslatedFromAudio: data.isTranslatedFromAudio || false,
-      }),
+    const [dataTables, responseSchema] = await Promise.all([
+      getProjectDataTables(project.id),
       getResponseSchema(project.id),
     ]);
 
-    const doctorsTable = formatDoctorsTable(doctors);
-    const medicinesTable = formatMedicinesTable(medicines);
-    const faqsText = formatFAQsForPrompt(faqs);
-
-    // Rebuild user prompt with filled knowledge base tables
-    const finalUserPrompt = await buildUserPrompt({
-      userInput: data.userInput,
-      inputType: data.type,
-      project,
+    const systemPrompt = await getSystemPrompt(
       session,
-      isNewSession,
-      doctorsTable,
-      medicinesTable,
-      faqsText,
-      isTranslatedFromAudio: data.isTranslatedFromAudio || false,
-    });
+      project,
+      dataTables,
+      data.userInput,
+      data.type,
+      data.isTranslatedFromAudio || false,
+    );
+
+    const userPrompt = [
+      `USER_INPUT: ${data.userInput}`,
+      `INPUT_TYPE: ${data.type}`,
+      `IS_NEW_SESSION: ${isNewSession ? "true" : "false"}`,
+    ].join("\n");
 
     const resultText = await callGemini(
       systemPrompt,
-      finalUserPrompt,
+      userPrompt,
       responseSchema,
     );
     const result = parseAIResponse<AIPromptResponse>(
@@ -433,32 +394,5 @@ export async function translateAudioToEnglish(
   } catch (error) {
     console.error("Audio translation error:", error);
     return null;
-  }
-}
-
-/**
- * Rephrase FAQ answer with AI context
- */
-export async function rephraseFAQ(
-  currentAIMessage: string,
-  userQuestion: string,
-  projectId: string,
-): Promise<string> {
-  try {
-    const faqs = await getFAQs(projectId);
-    const faqsText = formatFAQsForPrompt(faqs);
-    const prompt = getFAQRephrasePrompt(
-      currentAIMessage,
-      userQuestion,
-      faqsText,
-    );
-
-    const result = await callGemini(
-      "You are a friendly healthcare assistant. Rephrase FAQ answers naturally.",
-      prompt,
-    );
-    return result.trim() || currentAIMessage;
-  } catch {
-    return currentAIMessage;
   }
 }

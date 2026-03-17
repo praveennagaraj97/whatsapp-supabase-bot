@@ -53,8 +53,7 @@ export type ProjectImportResponse = {
 };
 
 export type ProjectPrompts = {
-  systemPromptTemplate: string | null;
-  userPromptTemplate: string | null;
+  systemPrompt: string;
   responseSchema: Record<string, unknown>;
 };
 
@@ -64,7 +63,6 @@ export type ProjectPromptsResponse = {
 };
 
 export type UpdateProjectPromptsPayload = {
-  systemPromptTemplate?: string;
-  userPromptTemplate?: string;
+  systemPrompt?: string;
   responseSchema?: Record<string, unknown>;
 };

@@ -15,9 +15,8 @@ import {
   PROCESSING_TIMEOUT_MS,
 } from "../_shared/constants.ts";
 import { extractValidWhatsappMessages } from "../_shared/extract-message.ts";
-import { processUserMessage, rephraseFAQ, translateAudioToEnglish } from "../_shared/gemini.ts";
+import { processUserMessage, translateAudioToEnglish } from "../_shared/gemini.ts";
 import { getAndClearInactivityMessage, setInactivityMessage } from "../_shared/inactivity.ts";
-import { getDoctors, getMedicines } from "../_shared/knowledge-base.ts";
 import {
   getMessageDedupKey,
   hasSuspiciousPatterns,
@@ -48,7 +47,6 @@ import {
   startNewSession,
   updateSession,
 } from "../_shared/session.ts";
-import { getSupabaseClient } from "../_shared/supabase-client.ts";
 import type {
   AIPromptResponse,
   ProjectConfig,
@@ -107,23 +105,14 @@ async function handleCacheRefresh(_req: Request): Promise<Response> {
 
 // ─── Apply extracted data to session ───
 function applyExtractedData(
-  session: UserSession,
+  _session: UserSession,
   data: AIPromptResponse["extractedData"],
 ): Partial<UserSession> {
   const update: Partial<UserSession> = {};
-  console.log("Session", session);
-
-  if (data.symptoms) update.symptoms = data.symptoms;
-  if (data.specialization) update.specialization = data.specialization;
-  if (data.doctorId) update.doctor_id = data.doctorId;
-  if (data.doctorName) update.doctor_name = data.doctorName;
-  if (data.clinicId) update.clinic_id = data.clinicId;
-  if (data.clinicName) update.clinic_name = data.clinicName;
-  if (data.preferredDate) update.preferred_date = data.preferredDate;
-  if (data.preferredTime) update.preferred_time = data.preferredTime;
-  if (data.medicineIds?.length) update.medicine_ids = data.medicineIds;
-  if (data.medicineNames?.length) update.medicine_names = data.medicineNames;
-  if (data.userName) update.user_name = data.userName;
+  const extractedUserName = data.userName;
+  if (typeof extractedUserName === "string" && extractedUserName.trim().length > 0) {
+    update.user_name = extractedUserName.trim();
+  }
 
   return update;
 }
@@ -133,224 +122,9 @@ async function sendResponse(
   project: ProjectConfig,
   to: string,
   aiResponse: AIPromptResponse,
-  session: UserSession,
+  _session: UserSession,
 ): Promise<void> {
-  const { message, nextAction, options, extractedData } = aiResponse;
-
-  // Show doctors list
-  if (nextAction === "show_doctors") {
-    const doctors = await getDoctors(project.id);
-    const spec = extractedData.specialization || session.specialization;
-    const matched = spec
-      ? doctors.filter((d) => d.specialization.toLowerCase().includes(spec.toLowerCase()))
-      : doctors;
-
-    if (matched.length > 0 && matched.length <= 10) {
-      const sections = [
-        {
-          title: "Available Doctors",
-          rows: matched.map((d) => ({
-            id: `doc_${d.id}`,
-            title: d.name.slice(0, 24),
-            description: `${d.specialization} | ₹${d.consultation_fee} | ${d.rating}★`.slice(
-              0,
-              72,
-            ),
-          })),
-        },
-      ];
-
-      await sendInteractiveList(to, message, "View Doctors", sections);
-    } else {
-      await sendText(to, message);
-    }
-    await saveSentMessage(project.id, to, message);
-    return;
-  }
-
-  // Show medicines list
-  if (nextAction === "show_medicines") {
-    const medicines = await getMedicines(project.id);
-    const category = extractedData.medicineNames?.[0];
-    const matched = category
-      ? medicines.filter(
-        (m) =>
-          m.name.toLowerCase().includes(category.toLowerCase()) ||
-          m.category.toLowerCase().includes(category.toLowerCase()) ||
-          (m.generic_name &&
-            m.generic_name.toLowerCase().includes(category.toLowerCase())),
-      )
-      : medicines.slice(0, 10);
-
-    if (matched.length > 0 && matched.length <= 10) {
-      const sections = [
-        {
-          title: "Available Medicines",
-          rows: matched.map((m) => ({
-            id: `med_${m.id}`,
-            title: m.name.slice(0, 24),
-            description: `${m.category} | ₹${m.price} | ${m.dosage_form}`.slice(
-              0,
-              72,
-            ),
-          })),
-        },
-      ];
-
-      await sendInteractiveList(to, message, "View Medicines", sections);
-    } else {
-      await sendText(to, message);
-    }
-    await saveSentMessage(project.id, to, message);
-    return;
-  }
-
-  // Confirm appointment
-  if (
-    nextAction === "confirm_appointment" &&
-    session.doctor_id &&
-    session.preferred_date
-  ) {
-    const confirmMsg = [
-      message,
-      "",
-      "*Appointment Summary:*",
-      `Doctor: ${session.doctor_name}`,
-      `Clinic: ${session.clinic_name || "N/A"}`,
-      `Date: ${session.preferred_date}`,
-      `Time: ${session.preferred_time || "To be confirmed"}`,
-      session.symptoms ? `Symptoms: ${session.symptoms}` : "",
-    ]
-      .filter(Boolean)
-      .join("\n");
-
-    await sendInteractiveButtons(to, confirmMsg, [
-      { id: "confirm_apt_yes", title: "Confirm" },
-      { id: "confirm_apt_no", title: "Cancel" },
-    ]);
-    await saveSentMessage(project.id, to, confirmMsg);
-    return;
-  }
-
-  // Book doctor (create appointment)
-  if (
-    nextAction === "book_doctor" &&
-    session.doctor_id &&
-    session.preferred_date
-  ) {
-    // Validate appointment is not in the past (IST = UTC+5:30)
-    const aptTime = session.preferred_time || "10:00";
-    const aptDateTimeIST = new Date(
-      `${session.preferred_date}T${aptTime}:00+05:30`,
-    );
-    if (aptDateTimeIST <= new Date()) {
-      await sendText(
-        to,
-        `Sorry, *${session.preferred_date} at ${aptTime}* is in the past. Please choose a future date and time.`,
-      );
-      await updateSession(project.id, to, {
-        preferred_date: null,
-        preferred_time: null,
-      } as Partial<UserSession>);
-      await saveSentMessage(project.id, to, message);
-      return;
-    }
-
-    const supabase = getSupabaseClient();
-    const { error } = await supabase.from("appointments").insert({
-      project_id: project.id,
-      user_id: to,
-      doctor_id: session.doctor_id,
-      clinic_id: session.clinic_id,
-      appointment_date: session.preferred_date,
-      appointment_time: aptTime,
-      symptoms: session.symptoms,
-      status: "confirmed",
-    });
-
-    if (error) {
-      await sendText(
-        to,
-        "Sorry, there was an issue booking your appointment. Please try again.",
-      );
-    } else {
-      // Clear booking fields so AI doesn't re-confirm on next message
-      await updateSession(project.id, to, {
-        doctor_id: null,
-        doctor_name: null,
-        clinic_id: null,
-        clinic_name: null,
-        preferred_date: null,
-        preferred_time: null,
-        symptoms: null,
-        conversation_context: "general",
-        last_prompt_field: null,
-      } as Partial<UserSession>);
-      await sendText(to, message);
-    }
-    await saveSentMessage(project.id, to, message);
-    return;
-  }
-
-  // Confirm medicine order
-  if (nextAction === "confirm_order" && session.medicine_ids?.length) {
-    const medicines = await getMedicines(project.id);
-    const selected = medicines.filter((m) => session.medicine_ids!.includes(m.id));
-    const total = selected.reduce((sum, m) => sum + m.price, 0);
-
-    const orderMsg = [
-      message,
-      "",
-      "*Order Summary:*",
-      ...selected.map(
-        (m) => `• ${m.name} (${m.strength || m.dosage_form}) — ₹${m.price}`,
-      ),
-      `*Total: ₹${total}*`,
-    ].join("\n");
-
-    await sendInteractiveButtons(to, orderMsg, [
-      { id: "confirm_order_yes", title: "Place Order" },
-      { id: "confirm_order_no", title: "Cancel" },
-    ]);
-    await saveSentMessage(project.id, to, orderMsg);
-    return;
-  }
-
-  // Order medicine (create order)
-  if (nextAction === "order_medicine" && session.medicine_ids?.length) {
-    const medicines = await getMedicines(project.id);
-    const selected = medicines.filter((m) => session.medicine_ids!.includes(m.id));
-    const total = selected.reduce((sum, m) => sum + m.price, 0);
-
-    const supabase = getSupabaseClient();
-    const { error } = await supabase.from("medicine_orders").insert({
-      project_id: project.id,
-      user_id: to,
-      medicine_ids: session.medicine_ids,
-      medicine_names: session.medicine_names || selected.map((m) => m.name),
-      quantities: session.medicine_ids!.map(() => 1),
-      total_amount: total,
-      status: "confirmed",
-    });
-
-    if (error) {
-      await sendText(
-        to,
-        "Sorry, there was an issue placing your order. Please try again.",
-      );
-    } else {
-      // Clear order fields so AI doesn't re-confirm on next message
-      await updateSession(project.id, to, {
-        medicine_ids: null,
-        medicine_names: null,
-        conversation_context: "general",
-        last_prompt_field: null,
-      } as Partial<UserSession>);
-      await sendText(to, message);
-    }
-    await saveSentMessage(project.id, to, message);
-    return;
-  }
+  const { message, options } = aiResponse;
 
   // Options as buttons (max 3) or list
   if (options && options.length > 0) {
@@ -419,7 +193,6 @@ async function processOneTurn(
           status: { outcome: "FAILED", reason: "AUDIO_FAILED", field: null },
           options: null,
           conversationSummary: null,
-          callFAQs: false,
         },
       };
     }
@@ -449,34 +222,11 @@ async function processOneTurn(
   }
 
   // Handle interactive selections
-  if (inputType === "text" && userInputForProcessing.startsWith("doc_")) {
-    const docId = userInputForProcessing.replace("doc_", "");
-    const doctors = await getDoctors(project.id);
-    const doc = doctors.find((d) => d.id === docId);
-    if (doc) {
-      userInputForProcessing =
-        `I want to book an appointment with ${doc.name} (${doc.specialization})`;
+  if (inputType === "text" && userInputForProcessing.startsWith("opt_")) {
+    const matchedOption = userInputForProcessing.match(/^opt_(\d+)_/)?.[1];
+    if (matchedOption) {
+      userInputForProcessing = `Selected option index: ${matchedOption}`;
     }
-  }
-
-  if (inputType === "text" && userInputForProcessing.startsWith("med_")) {
-    const medId = userInputForProcessing.replace("med_", "");
-    const medicines = await getMedicines(project.id);
-    const med = medicines.find((m) => m.id === medId);
-    if (med) {
-      userInputForProcessing = `I want to order ${med.name} (${med.generic_name || med.category})`;
-    }
-  }
-
-  // Handle confirmation buttons
-  if (userInputForProcessing === "confirm_apt_yes") {
-    userInputForProcessing = "Yes, please confirm my appointment";
-  } else if (userInputForProcessing === "confirm_apt_no") {
-    userInputForProcessing = "No, I want to cancel this appointment";
-  } else if (userInputForProcessing === "confirm_order_yes") {
-    userInputForProcessing = "Yes, please place my medicine order";
-  } else if (userInputForProcessing === "confirm_order_no") {
-    userInputForProcessing = "No, I want to cancel this order";
   }
 
   // Process with AI
@@ -495,30 +245,6 @@ async function processOneTurn(
   // Apply extracted data
   const extracted = aiResponse.extractedData;
   const sessionUpdates = applyExtractedData(session, extracted);
-
-  // Update conversation context based on nextAction
-  if (
-    aiResponse.nextAction === "show_doctors" ||
-    aiResponse.nextAction === "book_doctor" ||
-    aiResponse.nextAction === "confirm_appointment"
-  ) {
-    sessionUpdates.conversation_context = "booking_doctor";
-  } else if (
-    aiResponse.nextAction === "show_medicines" ||
-    aiResponse.nextAction === "order_medicine" ||
-    aiResponse.nextAction === "confirm_order"
-  ) {
-    sessionUpdates.conversation_context = "booking_medicine";
-  }
-
-  // Handle FAQ rephrase
-  if (aiResponse.callFAQs && aiResponse.message) {
-    aiResponse.message = await rephraseFAQ(
-      aiResponse.message,
-      userInputForProcessing,
-      project.id,
-    );
-  }
 
   const updatedSession: UserSession = { ...session, ...sessionUpdates };
 
@@ -870,12 +596,12 @@ Deno.serve({ port }, async (req: Request): Promise<Response> => {
         await sendText(
           message.from,
           project.welcome_message ||
-            `Welcome${nameGreeting} to *${project.bot_name}*! 🏥\n\nI'm your personal healthcare assistant for *${project.name}*. I can help you:\n\n• Discuss symptoms & get health guidance\n• Book doctor appointments\n• Order medicines\n\n_You can type or send voice messages in English, Hindi, Tamil, Telugu, Malayalam, or Kannada._\n\nHow can I help you today?`,
+            `Welcome${nameGreeting} to *${project.bot_name}*!\n\nI am here to help with *${project.name}*. You can ask questions or send voice messages in English, Hindi, Tamil, Telugu, Malayalam, or Kannada.\n\nHow can I help you today?`,
         );
         await saveSentMessage(
           project.id,
           message.from,
-          `Welcome to ${project.bot_name}! I can help with symptoms, doctor appointments, and medicines.`,
+          `Welcome to ${project.bot_name}! How can I help you today?`,
         );
 
         // Small delay before processing

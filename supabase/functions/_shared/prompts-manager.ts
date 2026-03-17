@@ -46,55 +46,11 @@ export function getDefaultResponseSchema(): Record<string, unknown> {
     properties: {
       extractedData: {
         type: "OBJECT",
-        properties: {
-          symptoms: { type: "STRING", nullable: true },
-          specialization: { type: "STRING", nullable: true },
-          doctorId: { type: "STRING", nullable: true },
-          doctorName: { type: "STRING", nullable: true },
-          clinicId: { type: "STRING", nullable: true },
-          clinicName: { type: "STRING", nullable: true },
-          preferredDate: { type: "STRING", nullable: true },
-          preferredTime: { type: "STRING", nullable: true },
-          medicineIds: {
-            type: "ARRAY",
-            items: { type: "STRING" },
-            nullable: true,
-          },
-          medicineNames: {
-            type: "ARRAY",
-            items: { type: "STRING" },
-            nullable: true,
-          },
-          userName: { type: "STRING", nullable: true },
-        },
-        required: [
-          "symptoms",
-          "specialization",
-          "doctorId",
-          "doctorName",
-          "clinicId",
-          "clinicName",
-          "preferredDate",
-          "preferredTime",
-          "medicineIds",
-          "medicineNames",
-          "userName",
-        ],
       },
       message: { type: "STRING" },
       nextAction: {
         type: "STRING",
         nullable: true,
-        enum: [
-          "show_doctors",
-          "show_medicines",
-          "book_doctor",
-          "confirm_appointment",
-          "order_medicine",
-          "confirm_order",
-          "faq",
-          "none",
-        ],
       },
       status: {
         type: "OBJECT",
@@ -114,7 +70,6 @@ export function getDefaultResponseSchema(): Record<string, unknown> {
         nullable: true,
       },
       conversationSummary: { type: "STRING", nullable: true },
-      callFAQs: { type: "BOOLEAN" },
     },
     required: [
       "extractedData",
@@ -123,7 +78,6 @@ export function getDefaultResponseSchema(): Record<string, unknown> {
       "status",
       "options",
       "conversationSummary",
-      "callFAQs",
     ],
   };
 }
@@ -136,84 +90,4 @@ export async function getResponseSchema(
 ): Promise<Record<string, unknown>> {
   const project = await getProjectPrompts(projectId);
   return project.response_schema || getDefaultResponseSchema();
-}
-
-/**
- * Get system prompt template for a project
- * These templates support {{variable}} placeholders that get replaced at runtime
- */
-export async function getSystemPromptTemplate(
-  projectId: string,
-): Promise<string> {
-  const project = await getProjectPrompts(projectId);
-
-  if (project.system_prompt_template) {
-    return project.system_prompt_template;
-  }
-
-  // Fallback if not set
-  return `You are **{{botName}}**, a friendly, empathetic, and knowledgeable healthcare assistant on WhatsApp for the project "{{projectName}}".
-
-## YOUR ROLE
-- Help patients discuss symptoms and get general health guidance
-- Help book doctor appointments based on specialization and availability
-- Help order medicines (OTC directly, prescription medicines need doctor approval)
-- Answer health-related FAQs clearly and compassionately
-- NEVER provide definitive medical diagnoses — always recommend consulting a doctor
-
-## PERSONALITY
-- Warm, caring, and professional — like a helpful hospital receptionist
-- Use simple language, avoid medical jargon unless explaining
-- Use WhatsApp formatting: *bold* for emphasis, _italic_ for gentle notes
-- Keep messages concise — WhatsApp users prefer short messages
-
-## KNOWLEDGE BASE RULES
-- You have access to real-time data about doctors, clinics, medicines, and FAQs
-- ONLY recommend doctors/medicines that exist in the provided data tables
-- If a user asks about something not in your knowledge base, politely say you don't have that information
-
-## EXTRACTION RULES
-Extract from user messages:
-- symptoms, specialization, doctorId/Name, clinicId/Name, preferredDate/Time, medicineIds/Names, userName
-- Set nextAction to guide the response: show_doctors, show_medicines, book_doctor, confirm_appointment, order_medicine, faq, none
-
-## SAFETY RULES
-- For emergency symptoms (chest pain, difficulty breathing, severe bleeding): IMMEDIATELY recommend calling 108 (ambulance) or 112 (emergency)
-- For prescription medicines: ALWAYS require doctor consultation
-- NEVER suggest specific dosages — defer to doctor or medicine label`;
-}
-
-/**
- * Get user prompt template for a project
- * These templates support {{variable}} placeholders that get replaced at runtime
- */
-export async function getUserPromptTemplate(
-  projectId: string,
-): Promise<string> {
-  const project = await getProjectPrompts(projectId);
-
-  if (project.user_prompt_template) {
-    return project.user_prompt_template;
-  }
-
-  // Fallback if not set
-  return `Current time: {{currentTime}}
-Patient: {{userName}} (from {{userPhone}})
-Project: {{projectName}} ({{botName}})
-Context: {{conversationContext}}
-
-## Conversation History
-{{conversationHistory}}
-
-## Session State
-{{sessionState}}
-
-## Knowledge Base
-{{knowledgeBase}}
-
-## User Input
-Input Type: {{inputType}}
-Message: {{userInput}}
-
-Respond with valid JSON matching the required schema. Your "message" field is the WhatsApp response.`;
 }

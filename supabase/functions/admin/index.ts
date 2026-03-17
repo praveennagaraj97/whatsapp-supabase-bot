@@ -7,16 +7,6 @@ import type { AdminUser, ProjectConfig } from "../_shared/types.ts";
 
 const port = Number(Deno.env.get("PORT") || "8001");
 
-const FAQ_CATEGORIES = new Set([
-  "GENERAL",
-  "BOOKING",
-  "MEDICINE",
-  "PAYMENT",
-  "INSURANCE",
-  "EMERGENCY",
-  "CONSULTATION",
-]);
-
 function corsHeaders(): HeadersInit {
   return {
     "Access-Control-Allow-Origin": "*",
@@ -83,20 +73,6 @@ function toBoolean(value: unknown, fallback = false): boolean {
     if (value.toLowerCase() === "false") return false;
   }
   return fallback;
-}
-
-function normalizeSourceId(rawValue: unknown, fallback: string): string {
-  const explicit = ensureString(rawValue);
-  if (explicit) return slugify(explicit);
-  return slugify(fallback) || crypto.randomUUID();
-}
-
-function makeScopedId(
-  projectSlug: string,
-  prefix: string,
-  sourceId: string,
-): string {
-  return `${projectSlug}_${prefix}_${sourceId}`.slice(0, 120);
 }
 
 async function parseJsonBody(req: Request): Promise<Record<string, unknown>> {
@@ -267,6 +243,13 @@ async function updateProject(projectId: string, req: Request): Promise<Response>
     updates.system_prompt = ensureString(body.system_prompt) || ensureString(body.systemPrompt);
   }
 
+  if ("response_schema" in body || "responseSchema" in body) {
+    const schema = body.response_schema || body.responseSchema;
+    if (typeof schema === "object" && schema !== null) {
+      updates.response_schema = schema;
+    }
+  }
+
   if ("welcome_message" in body || "welcomeMessage" in body) {
     updates.welcome_message = toNullableString(body.welcome_message) ||
       toNullableString(body.welcomeMessage);
@@ -335,191 +318,62 @@ async function login(req: Request): Promise<Response> {
   });
 }
 
-async function upsertBatch(
-  tableName: string,
-  rows: Record<string, unknown>[],
-): Promise<void> {
-  if (rows.length === 0) return;
-
-  const batchSize = 50;
-  for (let index = 0; index < rows.length; index += batchSize) {
-    const batch = rows.slice(index, index + batchSize);
-    const { error } = await getSupabaseClient()
-      .from(tableName)
-      .upsert(batch, { onConflict: "project_id,source_id" });
-
-    if (error) {
-      throw new Error(`Failed to upsert ${tableName}: ${error.message}`);
-    }
-  }
-}
-
-async function maybeClearTable(
-  tableName: string,
-  projectId: string,
-): Promise<void> {
-  const { error } = await getSupabaseClient()
-    .from(tableName)
-    .delete()
-    .eq("project_id", projectId);
-
-  if (error) {
-    throw new Error(`Failed to clear ${tableName}: ${error.message}`);
-  }
-}
-
 async function importProjectData(
   projectId: string,
   req: Request,
 ): Promise<Response> {
-  const project = await getProjectById(projectId);
+  await getProjectById(projectId);
   const body = await parseJsonBody(req);
   const data = body.data && typeof body.data === "object"
     ? (body.data as Record<string, unknown>)
     : body;
   const replaceExisting = toBoolean(body.replaceExisting, false);
 
-  const hasClinics = "clinics" in data;
-  const hasDoctors = "doctors" in data;
-  const hasMedicines = "medicines" in data;
-  const hasFaqs = "faqs" in data;
-
-  const clinicsInput = Array.isArray(data.clinics) ? data.clinics : [];
-  const doctorsInput = Array.isArray(data.doctors) ? data.doctors : [];
-  const medicinesInput = Array.isArray(data.medicines) ? data.medicines : [];
-  const faqsInput = Array.isArray(data.faqs) ? data.faqs : [];
-
-  const clinicMap = new Map<string, { id: string; name: string }>();
-
-  const clinics = clinicsInput.map((entry, index) => {
-    const item = entry as Record<string, unknown>;
-    const sourceId = normalizeSourceId(
-      item.id ?? item.source_id,
-      item.name ? String(item.name) : `clinic-${index + 1}`,
-    );
-    const id = makeScopedId(project.slug, "clinic", sourceId);
-    const name = ensureString(item.name) || `Clinic ${index + 1}`;
-    clinicMap.set(sourceId, { id, name });
-
-    return {
-      id,
-      project_id: project.id,
-      source_id: sourceId,
-      name,
-      address: toNullableString(item.address),
-      city: toNullableString(item.city),
-      phone: toNullableString(item.phone),
-      email: toNullableString(item.email),
-      operating_hours: toNullableString(item.operating_hours) ||
-        toNullableString(item.operatingHours),
-      specializations: toNullableString(item.specializations),
-      rating: toNullableNumber(item.rating),
-      is_active: toBoolean(item.is_active ?? item.isActive, true),
-    };
-  });
-
-  const doctors = doctorsInput.map((entry, index) => {
-    const item = entry as Record<string, unknown>;
-    const sourceId = normalizeSourceId(
-      item.id ?? item.source_id,
-      item.name ? String(item.name) : `doctor-${index + 1}`,
-    );
-    const id = makeScopedId(project.slug, "doctor", sourceId);
-    const clinicSourceId = normalizeSourceId(
-      item.clinic_id ?? item.clinic_source_id ?? item.clinicId,
-      ensureString(item.clinic_name) || `clinic-${index + 1}`,
-    );
-    const clinic = clinicMap.get(clinicSourceId);
-
-    return {
-      id,
-      project_id: project.id,
-      source_id: sourceId,
-      name: ensureString(item.name) || `Doctor ${index + 1}`,
-      specialization: ensureString(item.specialization) || "General Medicine",
-      clinic_id: clinic?.id || makeScopedId(project.slug, "clinic", clinicSourceId),
-      clinic_name: ensureString(item.clinic_name) || clinic?.name || null,
-      experience_years: toNullableNumber(item.experience_years ?? item.experienceYears),
-      qualification: toNullableString(item.qualification),
-      available_days: toNullableString(item.available_days) || toNullableString(item.availableDays),
-      available_time_start: toNullableString(item.available_time_start) ||
-        toNullableString(item.availableTimeStart),
-      available_time_end: toNullableString(item.available_time_end) ||
-        toNullableString(item.availableTimeEnd),
-      consultation_fee: toNullableNumber(item.consultation_fee ?? item.consultationFee),
-      rating: toNullableNumber(item.rating),
-      languages: toNullableString(item.languages),
-      bio: toNullableString(item.bio),
-      is_active: toBoolean(item.is_active ?? item.isActive, true),
-    };
-  });
-
-  const medicines = medicinesInput.map((entry, index) => {
-    const item = entry as Record<string, unknown>;
-    const sourceId = normalizeSourceId(
-      item.id ?? item.source_id,
-      item.name ? String(item.name) : `medicine-${index + 1}`,
-    );
-    return {
-      id: makeScopedId(project.slug, "medicine", sourceId),
-      project_id: project.id,
-      source_id: sourceId,
-      name: ensureString(item.name) || `Medicine ${index + 1}`,
-      generic_name: toNullableString(item.generic_name) || toNullableString(item.genericName),
-      category: toNullableString(item.category),
-      description: toNullableString(item.description),
-      dosage_form: toNullableString(item.dosage_form) || toNullableString(item.dosageForm),
-      strength: toNullableString(item.strength),
-      price: toNullableNumber(item.price),
-      requires_prescription: toBoolean(
-        item.requires_prescription ?? item.requiresPrescription,
-        false,
-      ),
-      manufacturer: toNullableString(item.manufacturer),
-      in_stock: toBoolean(item.in_stock ?? item.inStock, true),
-    };
-  });
-
-  const faqs = faqsInput.map((entry, index) => {
-    const item = entry as Record<string, unknown>;
-    const sourceId = normalizeSourceId(
-      item.id ?? item.source_id,
-      item.question ? String(item.question) : `faq-${index + 1}`,
-    );
-    const rawCategory = ensureString(item.category).toUpperCase() || "GENERAL";
-    return {
-      project_id: project.id,
-      source_id: sourceId,
-      category: FAQ_CATEGORIES.has(rawCategory) ? rawCategory : "GENERAL",
-      question: ensureString(item.question) || `FAQ ${index + 1}`,
-      answer: ensureString(item.answer) || "Answer not provided.",
-      is_active: toBoolean(item.is_active ?? item.isActive, true),
-    };
-  });
+  const tableEntries = Object.entries(data).filter(([, value]) => Array.isArray(value));
 
   if (replaceExisting) {
-    if (hasDoctors) await maybeClearTable("doctors", project.id);
-    if (hasClinics) await maybeClearTable("clinics", project.id);
-    if (hasMedicines) await maybeClearTable("medicines", project.id);
-    if (hasFaqs) await maybeClearTable("faqs", project.id);
+    const { error: deleteError } = await getSupabaseClient()
+      .from("project_data_tables")
+      .delete()
+      .eq("project_id", projectId);
+
+    if (deleteError) {
+      throw new Error(`Failed to clear project_data_tables: ${deleteError.message}`);
+    }
   }
 
-  await upsertBatch("clinics", clinics);
-  await upsertBatch("doctors", doctors);
-  await upsertBatch("medicines", medicines);
-  await upsertBatch("faqs", faqs);
+  const imported: Record<string, number> = {};
 
-  clearKnowledgeBaseCache(project.id);
+  for (const [rawTableName, rawRows] of tableEntries) {
+    const tableName = slugify(rawTableName).replace(/-/g, "_") || "table";
+    const rows = (rawRows as unknown[])
+      .filter((entry) => typeof entry === "object" && entry !== null)
+      .map((entry) => entry as Record<string, unknown>);
+
+    imported[tableName] = rows.length;
+
+    const { error: upsertError } = await getSupabaseClient()
+      .from("project_data_tables")
+      .upsert(
+        {
+          project_id: projectId,
+          table_name: tableName,
+          rows,
+        },
+        { onConflict: "project_id,table_name" },
+      );
+
+    if (upsertError) {
+      throw new Error(`Failed to upsert ${tableName}: ${upsertError.message}`);
+    }
+  }
+
+  clearKnowledgeBaseCache(projectId);
   clearProjectCache();
 
   return jsonResponse({
-    projectId: project.id,
-    imported: {
-      clinics: clinics.length,
-      doctors: doctors.length,
-      medicines: medicines.length,
-      faqs: faqs.length,
-    },
+    projectId,
+    imported,
     replaceExisting,
   });
 }
@@ -548,8 +402,7 @@ async function getProjectPrompts(projectId: string): Promise<Response> {
   return jsonResponse({
     projectId: project.id,
     prompts: {
-      systemPromptTemplate: project.system_prompt_template || null,
-      userPromptTemplate: project.user_prompt_template || null,
+      systemPrompt: project.system_prompt || "",
       responseSchema: responseSchema,
     },
   });
@@ -563,19 +416,10 @@ async function updateProjectPrompts(
   const body = await parseJsonBody(req);
   const updates: Record<string, unknown> = {};
 
-  if ("system_prompt_template" in body || "systemPromptTemplate" in body) {
-    const template = ensureString(body.system_prompt_template) ||
-      ensureString(body.systemPromptTemplate);
-    if (template) {
-      updates.system_prompt_template = template;
-    }
-  }
-
-  if ("user_prompt_template" in body || "userPromptTemplate" in body) {
-    const template = ensureString(body.user_prompt_template) ||
-      ensureString(body.userPromptTemplate);
-    if (template) {
-      updates.user_prompt_template = template;
+  if ("system_prompt" in body || "systemPrompt" in body) {
+    const prompt = ensureString(body.system_prompt) || ensureString(body.systemPrompt);
+    if (prompt) {
+      updates.system_prompt = prompt;
     }
   }
 
@@ -606,8 +450,7 @@ async function updateProjectPrompts(
   return jsonResponse({
     projectId: project.id,
     prompts: {
-      systemPromptTemplate: data.system_prompt_template || null,
-      userPromptTemplate: data.user_prompt_template || null,
+      systemPrompt: data.system_prompt || "",
       responseSchema: data.response_schema || await getResponseSchema(projectId),
     },
   });

@@ -63,12 +63,6 @@ export interface SimplifiedMessage {
   profileName?: string;
 }
 
-export interface PromptConfig {
-  user_prompt_template: string;
-  system_prompt_template: string;
-  response_schema: Record<string, unknown>;
-}
-
 export interface ProjectConfig {
   id: string;
   name: string;
@@ -77,8 +71,6 @@ export interface ProjectConfig {
   description: string | null;
   system_prompt: string;
   welcome_message: string | null;
-  user_prompt_template: string | null;
-  system_prompt_template: string | null;
   response_schema: Record<string, unknown> | null;
   is_enabled: boolean;
   created_at: string;
@@ -154,22 +146,9 @@ export interface AIPromptResponse {
   };
   options: string[] | null;
   conversationSummary: string | null;
-  callFAQs: boolean;
 }
 
-export interface ExtractedData {
-  symptoms: string | null;
-  specialization: string | null;
-  doctorId: string | null;
-  doctorName: string | null;
-  clinicId: string | null;
-  clinicName: string | null;
-  preferredDate: string | null;
-  preferredTime: string | null;
-  medicineIds: string[] | null;
-  medicineNames: string[] | null;
-  userName: string | null;
-}
+export type ExtractedData = Record<string, unknown>;
 
 export interface InteractiveReplyButton {
   id: string;
