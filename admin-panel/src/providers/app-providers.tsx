@@ -2,6 +2,7 @@
 
 import { SWRConfig } from 'swr';
 
+import { ToasterProvider } from '@/components/toaster-provider';
 import { apiFetcher } from '@/config/axios';
 
 type AppProvidersProps = {
@@ -10,15 +11,18 @@ type AppProvidersProps = {
 
 export function AppProviders({ children }: AppProvidersProps) {
   return (
-    <SWRConfig
-      value={{
-        fetcher: apiFetcher,
-        revalidateOnFocus: false,
-        revalidateOnReconnect: false,
-        shouldRetryOnError: false,
-      }}
-    >
-      {children}
-    </SWRConfig>
+    <>
+      <ToasterProvider />
+      <SWRConfig
+        value={{
+          fetcher: apiFetcher,
+          revalidateOnFocus: false,
+          revalidateOnReconnect: false,
+          shouldRetryOnError: false,
+        }}
+      >
+        {children}
+      </SWRConfig>
+    </>
   );
 }

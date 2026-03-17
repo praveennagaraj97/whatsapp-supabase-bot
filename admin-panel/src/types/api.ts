@@ -28,3 +28,19 @@ export type Project = {
 export type ProjectsResponse = {
   projects: Project[];
 };
+
+export type ProjectImportPayload = {
+  data: Record<string, Record<string, unknown>[]>;
+  replaceExisting?: boolean;
+};
+
+export type ProjectImportResponse = {
+  projectId: string;
+  imported: {
+    clinics: number;
+    doctors: number;
+    medicines: number;
+    faqs: number;
+  };
+  replaceExisting: boolean;
+};

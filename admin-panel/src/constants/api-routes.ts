@@ -5,7 +5,11 @@ export const API_CONFIG = {
 export const API_ROUTES = {
   login: "/login",
   projects: "/projects",
+  projectDetail: (projectId: string) => `/projects/${projectId}`,
   enableProject: (projectId: string) => `/projects/${projectId}/enable`,
+  importProjectData: (projectId: string) => `/projects/${projectId}/import`,
+  updateProject: (projectId: string) => `/projects/${projectId}`,
+  deleteProject: (projectId: string) => `/projects/${projectId}`,
 } as const;
 
 export const STORAGE_KEYS = {
