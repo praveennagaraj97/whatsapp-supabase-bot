@@ -130,6 +130,34 @@ function applyExtractedData(
   return update;
 }
 
+const WHATSAPP_BUTTON_TITLE_MAX = 20;
+const WHATSAPP_LIST_TITLE_MAX = 24;
+const WHATSAPP_LIST_ROWS_MAX = 10;
+
+function buildOptionId(option: string, index: number): string {
+  return `opt_${index}_${option.slice(0, 15).replace(/[^a-zA-Z0-9_]/g, "")}`;
+}
+
+function formatOptionsAsBullets(options: string[]): string {
+  return options.map((option) => `- ${option.trim()}`).join("\n");
+}
+
+function canSendAsButtons(options: string[]): boolean {
+  return (
+    options.length > 0 &&
+    options.length <= 3 &&
+    options.every((option) => option.trim().length <= WHATSAPP_BUTTON_TITLE_MAX)
+  );
+}
+
+function canSendAsList(options: string[]): boolean {
+  return (
+    options.length > 3 &&
+    options.length <= WHATSAPP_LIST_ROWS_MAX &&
+    options.every((option) => option.trim().length <= WHATSAPP_LIST_TITLE_MAX)
+  );
+}
+
 // ─── Send response based on nextAction ───
 async function sendResponse(
   project: ProjectConfig,
@@ -137,29 +165,46 @@ async function sendResponse(
   aiResponse: AIPromptResponse,
   _session: UserSession,
 ): Promise<void> {
-  const { message, options } = aiResponse;
+  const { options } = aiResponse;
+  const message = aiResponse.message || "";
 
   // Options as buttons (max 3) or list
   if (options && options.length > 0) {
-    if (options.length <= 3) {
-      const buttons = options.map((opt, i) => ({
-        id: `opt_${i}_${opt.slice(0, 15).replace(/[^a-zA-Z0-9_]/g, "")}`,
-        title: opt.slice(0, 20),
+    const normalizedOptions = options.map((option) => option.trim()).filter(Boolean);
+
+    if (canSendAsButtons(normalizedOptions)) {
+      const buttons = normalizedOptions.map((opt, i) => ({
+        id: buildOptionId(opt, i),
+        title: opt,
       }));
       await sendInteractiveButtons(to, message, buttons);
-    } else {
+      await saveSentMessage(project.id, to, message);
+      return;
+    }
+
+    if (canSendAsList(normalizedOptions)) {
       const sections = [
         {
           title: "Options",
-          rows: options.slice(0, 10).map((opt, i) => ({
-            id: `opt_${i}_${opt.slice(0, 15).replace(/[^a-zA-Z0-9_]/g, "")}`,
-            title: opt.slice(0, 24),
+          rows: normalizedOptions.slice(0, 10).map((opt, i) => ({
+            id: buildOptionId(opt, i),
+            title: opt,
           })),
         },
       ];
       await sendInteractiveList(to, message, "Choose", sections);
+      await saveSentMessage(project.id, to, message);
+      return;
     }
-    await saveSentMessage(project.id, to, message);
+
+    // If options are too long for interactive UI, send as plain text bullets.
+    const fallbackText = `${message}\n\nPlease choose one option:\n${
+      formatOptionsAsBullets(
+        normalizedOptions,
+      )
+    }`;
+    await sendText(to, fallbackText);
+    await saveSentMessage(project.id, to, fallbackText);
     return;
   }
 
