@@ -1,5 +1,6 @@
 'use client';
 
+import { ConfirmModal } from '@/components/confirm-modal';
 import { motion } from 'motion/react';
 import Link from 'next/link';
 import { useState } from 'react';
@@ -16,6 +17,7 @@ export function ProjectCard({ project, onToggle, onDelete }: ProjectCardProps) {
   const [isTogglingEnabled, setIsTogglingEnabled] = useState(false);
   const [isDeletingProject, setIsDeletingProject] = useState(false);
   const [error, setError] = useState('');
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
   async function handleToggle() {
     setError('');
@@ -30,20 +32,16 @@ export function ProjectCard({ project, onToggle, onDelete }: ProjectCardProps) {
     }
   }
 
-  async function handleDelete() {
-    if (
-      !confirm(
-        `Delete project "${project.name}"? This action cannot be undone.`,
-      )
-    ) {
-      return;
-    }
+  function openDeleteModal() {
+    setIsDeleteModalOpen(true);
+  }
 
+  async function handleDeleteConfirm() {
     setError('');
     setIsDeletingProject(true);
-
     try {
       await onDelete(project.id);
+      setIsDeleteModalOpen(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete project');
     } finally {
@@ -120,13 +118,24 @@ export function ProjectCard({ project, onToggle, onDelete }: ProjectCardProps) {
 
         <button
           type="button"
-          onClick={handleDelete}
+          onClick={openDeleteModal}
           disabled={isDeletingProject}
           className="rounded-xl border border-red-300 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-100 disabled:opacity-50"
         >
           {isDeletingProject ? 'Deleting...' : 'Delete'}
         </button>
       </div>
+
+      <ConfirmModal
+        isOpen={isDeleteModalOpen}
+        title="Delete Project"
+        description={`Are you sure you want to delete project "${project.name}"? This action cannot be undone.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        isConfirming={isDeletingProject}
+        onCancel={() => setIsDeleteModalOpen(false)}
+        onConfirm={handleDeleteConfirm}
+      />
     </motion.div>
   );
 }

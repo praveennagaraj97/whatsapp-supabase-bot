@@ -1,25 +1,32 @@
 'use client';
 
-import { AnimatePresence, motion } from 'motion/react';
-import { useMemo, useState } from 'react';
-
 import { AuthView } from '@/components/auth/auth-view';
 import { ProjectsView } from '@/components/projects/projects-view';
 import { STORAGE_KEYS } from '@/constants/api-routes';
 import { useProjects } from '@/hooks/api/use-projects';
-
-function getToken(): string {
-  return localStorage.getItem(STORAGE_KEYS.adminToken) || '';
-}
-
-function clearToken(): void {
-  localStorage.removeItem(STORAGE_KEYS.adminToken);
-}
+import { AnimatePresence, motion } from 'motion/react';
+import { useEffect, useMemo, useState } from 'react';
 
 export default function Home() {
-  const [token, setToken] = useState<string>(() =>
-    typeof window === 'undefined' ? '' : getToken(),
-  );
+  function getToken(): string {
+    return typeof window !== 'undefined'
+      ? window.localStorage.getItem(STORAGE_KEYS.adminToken) || ''
+      : '';
+  }
+
+  function clearToken(): void {
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem(STORAGE_KEYS.adminToken);
+    }
+  }
+
+  const [token, setToken] = useState<string>('');
+  // Set token on client only to avoid hydration mismatch
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setToken(window.localStorage.getItem(STORAGE_KEYS.adminToken) || '');
+    }
+  }, []);
 
   const isAuthed = Boolean(token);
   const { data, error, isLoading, mutate: swrMutate } = useProjects(isAuthed);
@@ -37,14 +44,11 @@ export default function Home() {
   }
 
   return (
-    <main
-      suppressHydrationWarning
-      className="relative isolate min-h-screen overflow-hidden"
-    >
+    <main className="relative isolate min-h-screen overflow-hidden">
       <div className="pointer-events-none absolute -left-40 top-10 h-80 w-80 rounded-full bg-[radial-gradient(circle_at_center,rgba(37,99,235,0.22),transparent_70%)]" />
       <div className="pointer-events-none absolute -right-32 bottom-12 h-96 w-96 rounded-full bg-[radial-gradient(circle_at_center,rgba(245,158,11,0.2),transparent_70%)]" />
 
-      <div className="relative z-10">
+      <div className="relative z-10" suppressHydrationWarning>
         <AnimatePresence mode="wait">
           {!isAuthed ? (
             <motion.div
