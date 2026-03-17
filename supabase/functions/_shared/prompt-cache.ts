@@ -9,6 +9,7 @@ const PROMPT_FILES_PREFIX = `${CACHE_DIR}/project`;
 // In-memory cache to avoid repeated filesystem reads
 const memoryCache = new Map<string, {
   systemPrompt: string;
+  systemPromptTemplate: string;
   userPromptTemplate: string;
   responseSchema: Record<string, unknown>;
   generatedAt: number;
@@ -106,7 +107,6 @@ export async function loadPromptFromCache(
     const content = await Deno.readTextFile(projectFile);
     const data = JSON.parse(content);
 
-    // Store in memory for next time
     memoryCache.set(projectId, {
       systemPrompt: data.systemPrompt,
       systemPromptTemplate: data.systemPromptTemplate,
@@ -173,7 +173,8 @@ export async function initializeCacheOnStartup(): Promise<void> {
       }
     }
   } catch (error) {
-    console.log("Cache not yet available:", error.message);
+    const message = error instanceof Error ? error.message : String(error);
+    console.log("Cache not yet available:", message);
   }
 
   cacheInitialized = true;
