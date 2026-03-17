@@ -591,7 +591,7 @@ Deno.serve({ port }, async (req: Request): Promise<Response> => {
         await sendText(
           message.from,
           project.welcome_message ||
-            `Welcome${nameGreeting} to *${project.bot_name}*!\n\nI am here to help with *${project.name}*. You can ask questions or send voice messages in English, Hindi, Tamil, Telugu, Malayalam, or Kannada.\n\nHow can I help you today?`,
+            `Welcome${nameGreeting} to *${project.bot_name}*!\n\n`,
         );
         await saveSentMessage(
           project.id,
