@@ -39,7 +39,7 @@ export async function cacheProjectPrompts(
   await ensureCacheDir();
 
   const projectFile = `${PROMPT_FILES_PREFIX}_${project.id}.json`;
-  
+
   // Write individual files for fast reading
   const cacheData = {
     projectId: project.id,
@@ -54,16 +54,16 @@ export async function cacheProjectPrompts(
   };
 
   await Deno.writeTextFile(projectFile, JSON.stringify(cacheData, null, 2));
-  
+
   // Update enabled project marker
   const enabledMarker = {
     projectId: project.id,
     projectName: project.name,
     updatedAt: Date.now(),
   };
-  
+
   await Deno.writeTextFile(ENABLED_PROJECT_FILE, JSON.stringify(enabledMarker, null, 2));
-  
+
   // Update in-memory cache
   memoryCache.set(project.id, {
     systemPrompt: cacheData.systemPrompt,
@@ -72,7 +72,7 @@ export async function cacheProjectPrompts(
     responseSchema: cacheData.responseSchema,
     generatedAt: cacheData.generatedAt,
   });
-  
+
   enabledProjectCache = project;
   console.log(`✓ Cached prompts for project: ${project.name}`);
 }
@@ -82,12 +82,14 @@ export async function cacheProjectPrompts(
  */
 export async function loadPromptFromCache(
   projectId: string,
-): Promise<{
-  systemPromptTemplate: string;
-  userPromptTemplate: string;
-  responseSchema: Record<string, unknown>;
-  systemPrompt: string;
-} | null> {
+): Promise<
+  {
+    systemPromptTemplate: string;
+    userPromptTemplate: string;
+    responseSchema: Record<string, unknown>;
+    systemPrompt: string;
+  } | null
+> {
   // Check memory cache first
   if (memoryCache.has(projectId)) {
     const cached = memoryCache.get(projectId)!;
@@ -103,7 +105,7 @@ export async function loadPromptFromCache(
     const projectFile = `${PROMPT_FILES_PREFIX}_${projectId}.json`;
     const content = await Deno.readTextFile(projectFile);
     const data = JSON.parse(content);
-    
+
     // Store in memory for next time
     memoryCache.set(projectId, {
       systemPrompt: data.systemPrompt,
@@ -112,7 +114,7 @@ export async function loadPromptFromCache(
       responseSchema: data.responseSchema,
       generatedAt: data.generatedAt,
     });
-    
+
     return {
       systemPromptTemplate: data.systemPromptTemplate,
       userPromptTemplate: data.userPromptTemplate,
@@ -143,7 +145,7 @@ export async function getEnabledProjectIdFromCache(): Promise<string | null> {
 export async function clearPromptCache(): Promise<void> {
   memoryCache.clear();
   enabledProjectCache = null;
-  
+
   try {
     await Deno.remove(CACHE_DIR, { recursive: true });
     await Deno.mkdir(CACHE_DIR, { recursive: true });
@@ -159,7 +161,7 @@ export async function clearPromptCache(): Promise<void> {
  */
 export async function initializeCacheOnStartup(): Promise<void> {
   if (cacheInitialized) return;
-  
+
   try {
     const enabledProjectId = await getEnabledProjectIdFromCache();
     if (enabledProjectId) {
@@ -173,7 +175,7 @@ export async function initializeCacheOnStartup(): Promise<void> {
   } catch (error) {
     console.log("Cache not yet available:", error.message);
   }
-  
+
   cacheInitialized = true;
 }
 

@@ -1,7 +1,7 @@
 // Prompt management - loads prompts from file cache first, then database
 import {
-  loadPromptFromCache,
-  initializeCacheOnStartup,
+    initializeCacheOnStartup,
+    loadPromptFromCache,
 } from "./prompt-cache.ts";
 import { getSupabaseClient } from "./supabase-client.ts";
 import type { ProjectConfig } from "./types.ts";

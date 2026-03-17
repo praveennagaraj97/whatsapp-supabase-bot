@@ -1,8 +1,8 @@
 import { issueAdminToken, requireAdminAuth, verifyAdminPassword } from "../_shared/admin-auth.ts";
 import { clearKnowledgeBaseCache } from "../_shared/knowledge-base.ts";
 import { clearProjectCache } from "../_shared/projects.ts";
-import { clearPromptsCache, getResponseSchema } from "../_shared/prompts-manager.ts";
 import { cacheProjectPrompts } from "../_shared/prompt-cache.ts";
+import { clearPromptsCache, getResponseSchema } from "../_shared/prompts-manager.ts";
 import { getSupabaseClient } from "../_shared/supabase-client.ts";
 import type { AdminUser, ProjectConfig } from "../_shared/types.ts";
 

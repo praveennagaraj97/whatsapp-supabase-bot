@@ -1,26 +1,31 @@
 # Prompt Caching Optimization
 
 ## Problem
+
 Previously, prompts were loaded from the database **on every single message**. This added unnecessary database latency to the message processing pipeline.
 
 **Before (Slow)**:
+
 ```
-User Message → Webhook → Query DB (SELECT * FROM projects WHERE id=...) 
+User Message → Webhook → Query DB (SELECT * FROM projects WHERE id=...)
 → Load prompts → Process Gemini → Response (5-10ms wasted on DB query)
 ```
 
 ## Solution
+
 Prompts are now **cached to the filesystem** when a project is enabled, and loaded from cache on every message.
 
 **After (Fast)**:
+
 ```
-User Message → Webhook → Load from /tmp/prompts (instant) 
+User Message → Webhook → Load from /tmp/prompts (instant)
 → Process Gemini → Response (zero DB latency for prompts)
 ```
 
 ## How It Works
 
 ### 1. Project Enable (Admin Action)
+
 When an admin enables a project via `POST /admin/projects/:id/enable`:
 
 ```
@@ -36,6 +41,7 @@ Console: "✓ Cached prompts for project: Pizza Palace"
 ```
 
 **What gets cached:**
+
 - `system_prompt_template` - The AI system instruction template
 - `user_prompt_template` - The user message template
 - `response_schema` - The JSON schema for Gemini structured output
@@ -43,6 +49,7 @@ Console: "✓ Cached prompts for project: Pizza Palace"
 - `bot_name`, `project_name`, `description` - Metadata
 
 ### 2. Server Startup (First Request)
+
 When the webhook receives its first message:
 
 ```
@@ -58,6 +65,7 @@ Console: "✓ Cache initialized for project: <projectName>"
 ```
 
 ### 3. Message Processing (Every Message)
+
 When a user message arrives:
 
 ```
@@ -102,6 +110,7 @@ Return template string → Process through Gemini
 ## Performance Impact
 
 ### Before (Database Query per Message)
+
 ```
 Message arrives
 ├─ Extract message: 2ms
@@ -114,6 +123,7 @@ Message arrives
 ```
 
 ### After (File Cache)
+
 ```
 Message arrives
 ├─ Extract message: 2ms
@@ -128,19 +138,23 @@ Message arrives
 ## Cache Invalidation
 
 ### When Cache Is Refreshed
+
 1. **Project Enabled** → Automatic cache generation
 2. **Server Crashes** → Cache rebuilt on next startup
 3. **Manual Clear** → `clearPromptCache()` (called via admin)
 
 ### When Cache Is NOT Automatically Updated
+
 - Updating project name, description, etc.
 - Modifying prompts via `/admin/projects/:id/prompts`
 
 **If you modify prompts**, the old cache will be used until:
+
 - That project is disabled and re-enabled (cache refresh)
 - Server restarts (rebuilds from DB)
 
 **Recommendation**: To ensure updated prompts load immediately, either:
+
 1. Disable then re-enable the project (triggers cache refresh)
 2. Restart the webhook function
 
@@ -168,6 +182,7 @@ Level 3: Database Cache (Supabase)
 ```
 
 **Lookup order**:
+
 ```
 Memory? → File? → Database? → Error
 ```
@@ -175,6 +190,7 @@ Memory? → File? → Database? → Error
 ## Deployment
 
 No action needed! The prompt caching system:
+
 - ✅ Automatically initializes on first request
 - ✅ Automatically caches when projects are enabled
 - ✅ Falls back to database if cache is cleared
@@ -183,9 +199,10 @@ No action needed! The prompt caching system:
 ## Monitoring
 
 Check cache status:
+
 ```typescript
 // In webhook or admin function
-import { getCacheStats } from "../_shared/prompt-cache.ts";
+import { getCacheStats } from '../_shared/prompt-cache.ts';
 
 const stats = getCacheStats();
 console.log(stats);
@@ -197,6 +214,7 @@ console.log(stats);
 ```
 
 Monitor via logs:
+
 - `✓ Cached prompts for project: Pizza Palace` → Cache write success
 - `✓ Cache initialized for project: abc-123` → Cache initialization success
 - `Cache not yet available:...` → Cache file doesn't exist yet (first request)
@@ -204,38 +222,46 @@ Monitor via logs:
 ## Troubleshooting
 
 ### Prompts Still Loading from Database
+
 **Problem**: You're seeing slow database queries even with cache.
 
 **Solution**:
+
 1. Check if the project is enabled: `GET /admin/projects`
 2. Look for console log: "✓ Cached prompts for project: X"
 3. If not present, enable the project: `POST /admin/projects/:id/enable`
 
 ### Cache Not Initialized on Server Start
+
 **Problem**: `Cache not yet available` message but webhook still works.
 
 **Solution**: This is normal. The cache initializes on the first message, not on server boot (Supabase Edge Functions don't have traditional startup).
 
 ### Updated Prompts Not Reflecting
+
 **Problem**: You updated a prompt via `/admin/projects/:id/prompts` but old version is showing.
 
-**Solution**: 
+**Solution**:
+
 1. To force cache refresh via admin: disable and re-enable the project
 2. Or wait for natural cold-start (function hasn't been called in a while)
 
 ## Code Changes Summary
 
 **New Files**:
+
 - `supabase/functions/_shared/prompt-cache.ts` - Filesystem caching logic
 
 **Modified Files**:
+
 - `supabase/functions/_shared/prompts-manager.ts` - Added cache lookup before DB
 - `supabase/functions/admin/index.ts` - Call `cacheProjectPrompts()` on project enable
 - `supabase/functions/webhook/index.ts` - Call `initializeCacheOnStartup()` on first request
 - `supabase/functions/_shared/prompts/system-prompt.ts` - Updated comment
 - `supabase/functions/_shared/prompts/user-prompt.ts` - Updated comment
 
-**No breaking changes**: 
+**No breaking changes**:
+
 - Existing prompts load the same way
 - Database remains source of truth
 - Cache is transparent to message processing
