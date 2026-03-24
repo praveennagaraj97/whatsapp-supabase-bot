@@ -340,7 +340,7 @@ export async function processUserMessage(
       getResponseSchema(project.id),
     ]);
 
-    const systemPrompt = await getSystemPrompt(
+    const systemPrompt = getSystemPrompt(
       session,
       project,
       dataTables,

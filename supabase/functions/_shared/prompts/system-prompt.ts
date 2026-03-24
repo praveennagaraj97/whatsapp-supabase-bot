@@ -28,14 +28,14 @@ Return a valid JSON object matching the response schema. Do NOT add text outside
 ## SUPPORT
 Email: ${SUPPORT_EMAIL}  |  Phone: ${SUPPORT_PHONE}`;
 
-export async function getSystemPrompt(
+export function getSystemPrompt(
   session: UserSession,
   project: ProjectConfig,
   dataTables: ProjectDataTable[],
   userInput: string,
   inputType: "text" | "audio" | "location",
   isTranslatedFromAudio: boolean,
-): Promise<string> {
+): string {
   const basePrompt = project.system_prompt?.trim() ||
     "You are a helpful project assistant. Use the provided project data tables to answer accurately.";
 
