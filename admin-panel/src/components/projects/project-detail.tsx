@@ -27,11 +27,12 @@ const PREDEFINED_FORMAT_RULES = `## OUTPUT
 Return a valid JSON object matching the response schema. Do NOT add text outside JSON.
 
 ## MESSAGE RULES
+- Format replies for WhatsApp.
 - Keep messages short and friendly (2-4 sentences max).
 - Write naturally spaced paragraphs. Insert a space after punctuation and use blank lines between topic shifts.
-- Use *bold* for key terms users must fill.
-- Separate topics with blank lines.
-- Use plain text only — no markdown headers, bullets, or numbered lists.
+- Use WhatsApp bold syntax with exactly 2 asterisks total: one opening and one closing pair, like *bold*.
+- Do not use markdown headers, tables, or bullet markers that rely on markdown rendering.
+- If you need a list, use plain text lines starting with - or 1. Never use * as a bullet marker.
 - Emojis are OK for a light tone.
 - Never include internal IDs or codes.
 
