@@ -133,6 +133,7 @@ function applyExtractedData(
 const WHATSAPP_BUTTON_TITLE_MAX = 20;
 const WHATSAPP_LIST_TITLE_MAX = 24;
 const WHATSAPP_LIST_ROWS_MAX = 10;
+const SESSION_OPTION_ID_MAP_KEY = "last_option_id_map";
 
 function buildOptionId(option: string, index: number): string {
   return `opt_${index}_${option.slice(0, 15).replace(/[^a-zA-Z0-9_]/g, "")}`;
@@ -140,6 +141,47 @@ function buildOptionId(option: string, index: number): string {
 
 function formatOptionsAsBullets(options: string[]): string {
   return options.map((option) => `- ${option.trim()}`).join("\n");
+}
+
+function buildOptionIdMap(options: string[]): Record<string, string> {
+  const map: Record<string, string> = {};
+
+  for (const [index, option] of options.entries()) {
+    const normalized = option.trim();
+    if (!normalized) continue;
+    map[buildOptionId(normalized, index)] = normalized;
+  }
+
+  return map;
+}
+
+function updateSessionOptionIdMap(
+  session: UserSession,
+  options: string[] | null,
+): void {
+  const extracted = {
+    ...(session.extracted_data || {}),
+  };
+
+  if (options && options.length > 0) {
+    const normalized = options.map((option) => option.trim()).filter(Boolean);
+    extracted[SESSION_OPTION_ID_MAP_KEY] = buildOptionIdMap(normalized);
+  } else {
+    delete extracted[SESSION_OPTION_ID_MAP_KEY];
+  }
+
+  session.extracted_data = extracted;
+}
+
+function getMappedOptionLabel(
+  session: UserSession,
+  optionId: string,
+): string | null {
+  const rawMap = session.extracted_data?.[SESSION_OPTION_ID_MAP_KEY];
+  if (!rawMap || typeof rawMap !== "object") return null;
+
+  const mapped = (rawMap as Record<string, unknown>)[optionId];
+  return typeof mapped === "string" && mapped.trim().length > 0 ? mapped.trim() : null;
 }
 
 function canSendAsButtons(options: string[]): boolean {
@@ -269,9 +311,19 @@ async function processOneTurn(
 
   // Handle interactive selections
   if (inputType === "text" && userInputForProcessing.startsWith("opt_")) {
-    const matchedOption = userInputForProcessing.match(/^opt_(\d+)_/)?.[1];
-    if (matchedOption) {
-      userInputForProcessing = `Selected option index: ${matchedOption}`;
+    const rawOptionId = userInputForProcessing.trim();
+    const mappedFromSession = getMappedOptionLabel(session, rawOptionId);
+    const mappedFromWhatsApp = message.interactiveReplyTitle?.trim() || "";
+    const resolvedOption = mappedFromWhatsApp || mappedFromSession;
+
+    console.info(
+      `[INTERACTIVE_SELECTION] user=${message.from} id=${rawOptionId} title=${
+        mappedFromWhatsApp || ""
+      } mapped=${mappedFromSession || ""}`,
+    );
+
+    if (resolvedOption) {
+      userInputForProcessing = resolvedOption;
     }
   }
 
@@ -319,6 +371,7 @@ async function handleMessage(
 
       const turn = await processOneTurn(project, currentMessage, currentSession, isNew);
       currentSession = turn.session;
+      updateSessionOptionIdMap(currentSession, turn.aiResponse.options);
       lastAiResponse = turn.aiResponse;
 
       // Save conversation summary

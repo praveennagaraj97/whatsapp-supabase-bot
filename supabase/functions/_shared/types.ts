@@ -50,6 +50,7 @@ export interface SimplifiedMessage {
   waId: string;
   id?: string;
   text?: string;
+  interactiveReplyTitle?: string;
   audioUrl?: string;
   audioId?: string;
   mimeType?: string;

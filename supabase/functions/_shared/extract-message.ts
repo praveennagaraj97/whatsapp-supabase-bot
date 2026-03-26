@@ -43,6 +43,7 @@ export function extractValidWhatsappMessages(
               timestamp,
               id: message.id,
               text: message.interactive.list_reply.id || "",
+              interactiveReplyTitle: message.interactive.list_reply.title || "",
               profileName,
             });
           }
@@ -57,6 +58,7 @@ export function extractValidWhatsappMessages(
               timestamp,
               id: message.id,
               text: message.interactive.button_reply.id || "",
+              interactiveReplyTitle: message.interactive.button_reply.title || "",
               profileName,
             });
           }
