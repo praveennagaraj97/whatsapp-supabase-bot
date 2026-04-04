@@ -192,6 +192,8 @@ Incoming Message
 
 ## Setup
 
+For a fully local Supabase workflow, see [supabase/README.md](supabase/README.md). The steps below are for configuring the hosted project and deploying to it.
+
 ### 1. Clone and Install
 
 ```bash

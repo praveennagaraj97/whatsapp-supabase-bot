@@ -5,7 +5,7 @@ services:
       dockerfile: Dockerfile
     container_name: whatsapp-webhook
     env_file:
-      - .env
+      - .env.local
     environment:
       PORT: '8000'
     ports:
